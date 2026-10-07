@@ -1,0 +1,1041 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PII gate demo</title>
+    <link rel="icon" href="data:,">
+    <style>
+        :root {
+            --paper: #eef1f4;
+            --panel: #fbfcfd;
+            --ink: #1b2a3a;
+            --muted: #5d6c7b;
+            --line: #c9d1d9;
+            --track: #dde3e9;
+            --pass: #0f7f82;
+            --block: #b5294e;
+            --focus: #2a5bd7;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            height: 100%;
+        }
+
+        body {
+            margin: 0;
+            background: var(--paper);
+            color: var(--ink);
+            font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        }
+
+        .num {
+            font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+            font-variant-numeric: tabular-nums;
+        }
+
+        :focus-visible {
+            outline: 2px solid var(--focus);
+            outline-offset: 2px;
+        }
+
+        .app {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 360px;
+            height: 100%;
+        }
+
+        @media (max-width: 900px) {
+            .app {
+                grid-template-columns: 1fr;
+                height: auto;
+            }
+        }
+
+        /* conversation */
+        main {
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            height: 100vh;
+        }
+
+        @media (max-width: 900px) {
+            main {
+                height: auto;
+                min-height: 70vh;
+            }
+        }
+
+        header {
+            padding: 22px 28px 14px;
+            border-bottom: 1px solid var(--line);
+        }
+
+        header h1 {
+            margin: 0 0 2px;
+            font-size: 20px;
+            font-weight: 650;
+            letter-spacing: -0.01em;
+        }
+
+        header p {
+            margin: 0;
+            color: var(--muted);
+            max-width: 66ch;
+        }
+
+        .flow {
+            margin-top: 10px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .flow span.step {
+            border: 1px solid var(--line);
+            border-radius: 4px;
+            padding: 1px 8px;
+            background: var(--panel);
+        }
+
+        #log {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px 28px;
+            display: flex;
+            flex-direction: column;
+            gap: 26px;
+        }
+
+        .empty {
+            color: var(--muted);
+            max-width: 52ch;
+            margin: auto 0;
+        }
+
+        .turn {
+            max-width: 720px;
+        }
+
+        .msg {
+            padding: 10px 14px;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            background: var(--panel);
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+        }
+
+        .msg.user {
+            border-left: 3px solid var(--ink);
+        }
+
+        /* decider score card attached to each message */
+        .check {
+            margin: 8px 0 0 14px;
+            padding: 12px 14px;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            background: var(--panel);
+            max-width: 480px;
+        }
+
+        .check.pending {
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .scorehead {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 8px;
+        }
+
+        .scorehead .big {
+            font-size: 26px;
+            font-weight: 600;
+            line-height: 1;
+        }
+
+        .scorehead .cap {
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .verdict {
+            font-weight: 650;
+            font-size: 14px;
+        }
+
+        .turn.blocked .verdict {
+            color: var(--block);
+        }
+
+        .turn.passed .verdict {
+            color: var(--pass);
+        }
+
+        .gauge {
+            position: relative;
+            height: 10px;
+            background: var(--track);
+            border-radius: 4px;
+        }
+
+        .gauge .fill {
+            position: absolute;
+            inset: 0 auto 0 0;
+            border-radius: 4px;
+            background: var(--pass);
+        }
+
+        .gauge.hot .fill {
+            background: var(--block);
+        }
+
+        .gauge .tick {
+            position: absolute;
+            top: -4px;
+            bottom: -4px;
+            width: 2px;
+            margin-left: -1px;
+            background: var(--ink);
+        }
+
+        .scale {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: var(--muted);
+            margin-top: 3px;
+        }
+
+        details.breakdown {
+            margin-top: 10px;
+            font-size: 13px;
+        }
+
+        details.breakdown summary {
+            cursor: pointer;
+            color: var(--muted);
+        }
+
+        .cats {
+            display: grid;
+            grid-template-columns: 110px 1fr 44px;
+            align-items: center;
+            gap: 5px 10px;
+            margin-top: 8px;
+        }
+
+        .cats .lab {
+            color: var(--muted);
+        }
+
+        .cats .lab.hit {
+            color: var(--ink);
+            font-weight: 600;
+        }
+
+        .cats .lab.hit::before {
+            content: "\25CF ";
+            color: var(--block);
+        }
+
+        .cats .gauge {
+            height: 6px;
+        }
+
+        .cats .gauge .tick {
+            top: -3px;
+            bottom: -3px;
+            width: 1px;
+            margin-left: 0;
+            opacity: .6;
+        }
+
+        .cats .v {
+            text-align: right;
+        }
+
+        .facts {
+            margin-top: 10px;
+            font-size: 12px;
+            color: var(--muted);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 2px 14px;
+        }
+
+        .reply {
+            margin-top: 10px;
+        }
+
+        .reply .msg {
+            border-left: 3px solid var(--pass);
+        }
+
+        .blockednote .msg {
+            border-left: 3px solid var(--block);
+            color: var(--muted);
+        }
+
+        .err {
+            color: var(--block);
+        }
+
+        /* composer */
+        .composer {
+            border-top: 1px solid var(--line);
+            padding: 10px 28px 22px;
+        }
+
+        .live {
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr) auto;
+            align-items: center;
+            gap: 10px;
+            font-size: 12px;
+            color: var(--muted);
+            margin-bottom: 8px;
+            max-width: 720px;
+        }
+
+        .live[hidden] {
+            display: none;
+        }
+
+        .live .gauge {
+            height: 6px;
+        }
+
+        .live .state {
+            min-width: 150px;
+            text-align: right;
+        }
+
+        .live .state.hot {
+            color: var(--block);
+            font-weight: 600;
+        }
+
+        form {
+            display: flex;
+            gap: 10px;
+        }
+
+        textarea,
+        input[type=text] {
+            font: inherit;
+            color: inherit;
+        }
+
+        #msg {
+            flex: 1;
+            resize: none;
+            height: 46px;
+            padding: 10px 12px;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            background: var(--panel);
+        }
+
+        button {
+            font: inherit;
+            cursor: pointer;
+            border-radius: 6px;
+            border: 1px solid var(--ink);
+            background: var(--ink);
+            color: #fff;
+            padding: 0 18px;
+        }
+
+        button:disabled {
+            opacity: .55;
+            cursor: default;
+        }
+
+        button.quiet {
+            background: transparent;
+            color: var(--ink);
+            border-color: var(--line);
+            padding: 6px 10px;
+            font-size: 13px;
+            text-align: left;
+        }
+
+        button.quiet:hover {
+            border-color: var(--ink);
+        }
+
+        button.link {
+            background: none;
+            border: 0;
+            padding: 0;
+            color: var(--focus);
+            font-size: 12px;
+        }
+
+        /* controls */
+        aside {
+            border-left: 1px solid var(--line);
+            background: var(--panel);
+            padding: 22px 20px;
+            overflow-y: auto;
+            height: 100vh;
+        }
+
+        @media (max-width: 900px) {
+            aside {
+                height: auto;
+                border-left: 0;
+                border-top: 1px solid var(--line);
+            }
+        }
+
+        aside h2 {
+            font-size: 15px;
+            margin: 0 0 6px;
+        }
+
+        aside section {
+            margin-bottom: 26px;
+        }
+
+        aside p.hint {
+            margin: 0 0 10px;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .row {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            gap: 8px;
+        }
+
+        .status {
+            font-size: 13px;
+        }
+
+        .status .dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--muted);
+            margin-right: 6px;
+        }
+
+        .status.ok .dot {
+            background: var(--pass);
+        }
+
+        .status.down .dot {
+            background: var(--block);
+        }
+
+        .status dl {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 0 10px;
+            margin: 6px 0 0;
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .status dd {
+            margin: 0;
+            overflow-wrap: anywhere;
+        }
+
+        input[type=range] {
+            width: 100%;
+            accent-color: var(--ink);
+        }
+
+        label.toggle {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            font-size: 13px;
+        }
+
+        #instr {
+            width: 100%;
+            height: 120px;
+            padding: 8px 10px;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            background: #fff;
+            font-size: 13px;
+        }
+
+        .tiles {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .tile {
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            padding: 6px 8px;
+        }
+
+        .tile .n {
+            font-size: 20px;
+            font-weight: 600;
+            line-height: 1.2;
+        }
+
+        .tile .k {
+            font-size: 11px;
+            color: var(--muted);
+        }
+
+        .chartwrap {
+            position: relative;
+        }
+
+        #chart {
+            display: block;
+            width: 100%;
+            height: 150px;
+        }
+
+        /* only the wide .hit rects take the pointer; bars, grid and labels sit on top */
+        #chart> :not(.hit) {
+            pointer-events: none;
+        }
+
+        #chart .hit:hover+.bar,
+        #chart .bar.active {
+            stroke: var(--ink);
+            stroke-width: 1.5;
+        }
+
+        .tip {
+            position: absolute;
+            pointer-events: none;
+            background: var(--ink);
+            color: #fff;
+            font-size: 12px;
+            padding: 6px 8px;
+            border-radius: 4px;
+            max-width: 230px;
+            transform: translate(-50%, -100%);
+            white-space: normal;
+        }
+
+        .tip[hidden] {
+            display: none;
+        }
+
+        .legend {
+            display: flex;
+            gap: 14px;
+            font-size: 12px;
+            color: var(--muted);
+            margin-top: 4px;
+        }
+
+        .legend i {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 2px;
+            margin-right: 5px;
+            vertical-align: -1px;
+        }
+
+        .examples {
+            display: grid;
+            gap: 6px;
+        }
+
+        .tools {
+            display: flex;
+            gap: 8px;
+        }
+
+        .sr {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
+            clip: rect(0 0 0 0);
+        }
+
+        @media (prefers-reduced-motion: no-preference) {
+            .gauge .fill {
+                transition: width .35s ease-out;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app">
+        <main>
+            <header>
+                <h1>PII Decider</h1>
+                <p id="lede">Every message goes to a local strands-decider model first. If it looks like it contains
+                    personal information, it is blocked and never reaches Bedrock.</p>
+                <div class="flow" aria-hidden="true">
+                    <span class="step">Your message</span>&rarr;
+                    <span class="step">strands-decider (local, noul score)</span>&rarr;
+                    <span class="step">score &ge; threshold? block</span>&rarr;
+                    <span class="step">Bedrock LLM</span>
+                </div>
+            </header>
+            <div id="log" aria-live="polite">
+                <p class="empty" id="empty">Send a message, or pick one of the examples on the right to see the gate
+                    decide.</p>
+            </div>
+            <div class="composer">
+                <div class="live" id="live" hidden>
+                    <span>Live PII score</span>
+                    <div class="gauge" id="liveGauge">
+                        <div class="fill" style="width:0%"></div>
+                        <div class="tick"></div>
+                    </div>
+                    <span class="state num" id="liveState">start typing</span>
+                </div>
+                <form id="form">
+                    <textarea id="msg" placeholder="Type a message" aria-label="Message" rows="1"></textarea>
+                    <button id="send" type="submit">Send</button>
+                </form>
+            </div>
+        </main>
+
+        <aside>
+            <section>
+                <h2>Decider model</h2>
+                <div class="status" id="status"><span class="dot"></span><span id="statusText">Checking...</span>
+                </div>
+            </section>
+
+            <section>
+                <div class="row">
+                    <h2>Block threshold</h2><span class="num" id="thrv">0.50</span>
+                </div>
+                <p class="hint">Messages scoring at or above this are blocked. Lower it to be stricter.</p>
+                <input type="range" id="thr" min="0.05" max="0.95" step="0.05" value="0.5" aria-label="Block threshold">
+                <label class="toggle" style="margin-top:10px"><input type="checkbox" id="liveToggle" checked> Score
+                    live while typing (never calls the LLM)</label>
+            </section>
+
+            <section>
+                <h2>Score history</h2>
+                <p class="hint">PII score of every message sent. Shading uses the current threshold, so drag the slider
+                    to see what a stricter or looser gate would have blocked.</p>
+                <div class="tiles">
+                    <div class="tile">
+                        <div class="n num" id="nSent">0</div>
+                        <div class="k">sent</div>
+                    </div>
+                    <div class="tile">
+                        <div class="n num" id="nBlocked">0</div>
+                        <div class="k">blocked</div>
+                    </div>
+                    <div class="tile">
+                        <div class="n num" id="nLat">&ndash;</div>
+                        <div class="k">median decider ms</div>
+                    </div>
+                </div>
+                <div class="chartwrap">
+                    <svg id="chart" role="img" aria-label="Bar chart of PII score per message"></svg>
+                    <div class="tip" id="tip" hidden></div>
+                </div>
+                <div class="legend"><span><i style="background:var(--pass)"></i>Below threshold</span><span><i
+                            style="background:var(--block)"></i>At or above</span></div>
+                <table class="sr" id="histTable">
+                    <caption>PII score per message</caption>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Message</th>
+                            <th>Score</th>
+                            <th>Verdict</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </section>
+
+            <section>
+                <div class="row">
+                    <h2>Question the decider answers</h2>
+                    <button class="link" id="resetInstr" type="button">Reset</button>
+                </div>
+                <p class="hint">Edit it and send again to change what counts as sensitive. Only this question decides
+                    the block; the category breakdown is extra context.</p>
+                <textarea id="instr" aria-label="Decider question"></textarea>
+            </section>
+
+            <section>
+                <h2>Try these</h2>
+                <div class="examples" id="examples"></div>
+            </section>
+
+            <section class="tools">
+                <button class="quiet" id="clear" type="button">Clear chat</button>
+            </section>
+        </aside>
+    </div>
+
+    <script>
+        const EXAMPLES = [
+            "How do I reset my password?",
+            "My card number is 4111 1111 1111 1111",
+            "You can call me on 98765 43210",
+            "My daughter Priya lives at 12 Oak Street",
+            "I am Rahul Sharma and my PAN is ABCDE1234F",
+            "Please email support@company.com about this",
+            "What are your opening hours on weekends?"
+        ];
+
+        // Served by FastAPI the API is same-origin. Opened from an editor's Live Server
+        // (ports 5500+) or as a file, the API calls have to go to the FastAPI app.
+        const API = location.protocol === "file:" || /^55\d\d$/.test(location.port) ? "http://127.0.0.1:8000" : "";
+
+        const $ = (id) => document.getElementById(id);
+        const log = $("log"), msg = $("msg"), send = $("send");
+        const thr = $("thr"), thrv = $("thrv"), instr = $("instr");
+        let defaultInstructions = "";
+        const CATEGORY_CUTOFF = 0.5;  // matches agent/decider_gate.py
+        const history = [];  // {text, score, blocked, decider_ms}
+
+        const pct = (x) => (Math.max(0, Math.min(1, x)) * 100) + "%";
+
+        function el(tag, cls, text) {
+            const e = document.createElement(tag);
+            if (cls) e.className = cls;
+            if (text !== undefined) e.textContent = text;
+            return e;
+        }
+
+        // FastAPI sends a string detail for HTTPException and a list for validation errors
+        function errText(data, res) {
+            const d = data.detail;
+            if (Array.isArray(d)) return d.map(e => e.msg).join("; ");
+            return d || res.statusText || `HTTP ${res.status}`;
+        }
+
+        function gauge(score, threshold, hot) {
+            const g = el("div", "gauge" + (hot ? " hot" : ""));
+            const fill = el("div", "fill"); fill.style.width = "0%";
+            const tick = el("div", "tick"); tick.style.left = pct(threshold);
+            tick.title = `threshold ${threshold.toFixed(2)}`;
+            g.append(fill, tick);
+            requestAnimationFrame(() => { fill.style.width = pct(score); });
+            return g;
+        }
+
+        // ---- threshold ----
+        thr.addEventListener("input", () => {
+            thrv.textContent = (+thr.value).toFixed(2);
+            renderLive();
+            renderHistory();
+        });
+
+        // ---- examples ----
+        EXAMPLES.forEach((text) => {
+            const b = document.createElement("button");
+            b.type = "button"; b.className = "quiet"; b.textContent = text;
+            b.addEventListener("click", () => { msg.value = text; msg.focus(); scheduleLive(); });
+            $("examples").appendChild(b);
+        });
+
+        // ---- defaults & decider status ----
+        fetch(API + "/api/defaults").then(r => r.json()).then(d => {
+            defaultInstructions = d.instructions;
+            instr.value = d.instructions;
+            if (d.mock_llm) $("lede").textContent += " (Mock LLM mode: Bedrock is not being called.)";
+        });
+        $("resetInstr").addEventListener("click", () => { instr.value = defaultInstructions; scheduleLive(); });
+
+        async function checkHealth() {
+            const box = $("status");
+            try {
+                const h = await (await fetch(API + "/api/health")).json();
+                box.className = "status " + h.decider;
+                box.querySelector("dl")?.remove();
+                if (h.decider === "ok") {
+                    $("statusText").textContent = "Online";
+                    const dl = el("dl");
+                    [["model", h.model], ["base", h.base_model], ["device", h.device],
+                    ["prefix cache", h.prefix_cache ? "on" : "off"]].forEach(([k, v]) => {
+                        dl.append(el("dt", "", k), el("dd", "num", String(v)));
+                    });
+                    box.appendChild(dl);
+                } else {
+                    $("statusText").textContent = `Offline. Start it with: strands-decider serve <model> --port 9000 (${h.url})`;
+                }
+            } catch {
+                box.className = "status down";
+                $("statusText").textContent = `Demo server unreachable. Is \`uv run main.py\` running? (${API || location.origin})`;
+            }
+        }
+        checkHealth();
+        setInterval(checkHealth, 15000);
+
+        // ---- live score while typing ----
+        let liveScore = null, liveTimer = null, liveCtl = null;
+        const liveBox = $("live"), liveState = $("liveState"), liveGauge = $("liveGauge");
+
+        function renderLive() {
+            const t = +thr.value;
+            liveGauge.querySelector(".tick").style.left = pct(t);
+            if (liveScore == null) {
+                liveGauge.querySelector(".fill").style.width = "0%";
+                liveGauge.classList.remove("hot");
+                liveState.classList.remove("hot");
+                return;
+            }
+            const hot = liveScore >= t;
+            liveGauge.querySelector(".fill").style.width = pct(liveScore);
+            liveGauge.classList.toggle("hot", hot);
+            liveState.classList.toggle("hot", hot);
+            liveState.textContent = `${liveScore.toFixed(3)} ${hot ? "would block" : "would pass"}`;
+        }
+
+        function scheduleLive() {
+            if (!$("liveToggle").checked) return;
+            clearTimeout(liveTimer);
+            liveCtl?.abort();
+            const text = msg.value.trim();
+            if (!text) { liveScore = null; liveState.textContent = "start typing"; renderLive(); return; }
+            liveState.textContent = "scoring...";
+            liveTimer = setTimeout(async () => {
+                liveCtl = new AbortController();
+                try {
+                    const res = await fetch(API + "/api/score", {
+                        method: "POST", signal: liveCtl.signal,
+                        headers: { "content-type": "application/json" },
+                        body: JSON.stringify({ message: text, instructions: instr.value })
+                    });
+                    const d = await res.json();
+                    if (!res.ok) throw new Error(errText(d, res));
+                    liveScore = d.score;
+                    renderLive();
+                } catch (err) {
+                    if (err.name !== "AbortError") { liveScore = null; renderLive(); liveState.textContent = "decider error"; }
+                }
+            }, 450);
+        }
+
+        msg.addEventListener("input", scheduleLive);
+        instr.addEventListener("input", scheduleLive);
+        $("liveToggle").addEventListener("change", (e) => {
+            liveBox.hidden = !e.target.checked;
+            if (e.target.checked) scheduleLive(); else { liveCtl?.abort(); clearTimeout(liveTimer); }
+        });
+        liveBox.hidden = !$("liveToggle").checked;
+        renderLive();
+
+        // ---- conversation ----
+        function addTurn(userText) {
+            $("empty")?.remove();
+            const turn = el("div", "turn");
+            turn.appendChild(el("div", "msg user", userText));
+            const status = el("div", "check pending", "Checking with the decider...");
+            turn.appendChild(status);
+            log.appendChild(turn);
+            log.scrollTop = log.scrollHeight;
+            return { turn, status };
+        }
+
+        function renderResult({ turn, status }, r) {
+            const blocked = r.blocked;
+            turn.classList.add(blocked ? "blocked" : "passed");
+            status.replaceWith(buildCheck(r));
+            const out = el("div", blocked ? "reply blockednote" : "reply");
+            out.appendChild(el("div", "msg", r.reply ?? ""));
+            turn.appendChild(out);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function buildCheck(r) {
+            const wrap = el("div", "check");
+
+            const head = el("div", "scorehead");
+            const left = el("div");
+            left.append(el("div", "big num", r.score.toFixed(3)), el("div", "cap", "PII probability (noul)"));
+            head.append(left, el("span", "verdict",
+                r.blocked ? "✕ Blocked before the LLM" : "✓ Passed to the LLM"));
+            wrap.appendChild(head);
+
+            wrap.appendChild(gauge(r.score, r.threshold, r.blocked));
+            const scale = el("div", "scale num");
+            scale.append(el("span", "", "0"), el("span", "", `threshold ${r.threshold.toFixed(2)}`), el("span", "", "1"));
+            wrap.appendChild(scale);
+
+            if (r.categories?.length) {
+                const det = el("details", "breakdown");
+                // categories explain the verdict; they use the backend's fixed 0.5 cutoff
+                const hits = r.categories.filter(c => c.score >= CATEGORY_CUTOFF);
+                det.open = r.blocked;
+                det.appendChild(el("summary", "", hits.length
+                    ? `Breakdown: ${hits.map(c => c.label.toLowerCase()).join(", ")}`
+                    : "Breakdown by PII type"));
+                const grid = el("div", "cats");
+                r.categories.forEach(c => {
+                    const hit = c.score >= CATEGORY_CUTOFF;
+                    grid.append(el("span", "lab" + (hit ? " hit" : ""), c.label),
+                        gauge(c.score, CATEGORY_CUTOFF, hit),
+                        el("span", "v num", c.score.toFixed(2)));
+                });
+                det.appendChild(grid);
+                wrap.appendChild(det);
+            }
+
+            const facts = el("div", "facts");
+            facts.appendChild(el("span", "num", `decider ${Math.round(r.decider_ms)} ms`));
+            facts.appendChild(el("span", "num", `gate round-trip ${Math.round(r.gate_ms)} ms`));
+            if (r.tokens != null) facts.appendChild(el("span", "num", `${r.tokens} tokens`));
+            facts.appendChild(el("span", "num", r.llm_ms != null ? `LLM ${Math.round(r.llm_ms)} ms` : "LLM not called"));
+            wrap.appendChild(facts);
+            return wrap;
+        }
+
+        $("form").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const text = msg.value.trim();
+            if (!text) return;
+            msg.value = ""; send.disabled = true;
+            clearTimeout(liveTimer); liveCtl?.abort();
+            liveScore = null; liveState.textContent = "start typing"; renderLive();
+            const t = addTurn(text);
+            try {
+                const res = await fetch(API + "/api/chat", {
+                    method: "POST",
+                    headers: { "content-type": "application/json" },
+                    body: JSON.stringify({ message: text, threshold: +thr.value, instructions: instr.value })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(errText(data, res));
+                renderResult(t, data);
+                history.push({ text, score: data.score, blocked: data.blocked, threshold: data.threshold, decider_ms: data.decider_ms });
+                renderHistory();
+            } catch (err) {
+                t.status.textContent = err.message;
+                t.status.classList.add("err");
+            } finally {
+                send.disabled = false; msg.focus();
+            }
+        });
+
+        msg.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("form").requestSubmit(); }
+        });
+
+        $("clear").addEventListener("click", async () => {
+            await fetch(API + "/api/reset", { method: "POST" });
+            log.replaceChildren();
+            history.length = 0;
+            renderHistory();
+            const p = el("p", "empty", "Chat cleared. The agent's conversation history was reset too.");
+            p.id = "empty"; log.appendChild(p);
+        });
+
+        // ---- score history chart ----
+        const SVGNS = "http://www.w3.org/2000/svg";
+        function svg(tag, attrs) {
+            const e = document.createElementNS(SVGNS, tag);
+            for (const k in attrs) e.setAttribute(k, attrs[k]);
+            return e;
+        }
+
+        function renderHistory() {
+            const t = +thr.value;
+            const chart = $("chart"), tip = $("tip");
+            const W = chart.clientWidth || 320, H = 150;
+            const pad = { l: 26, r: 6, t: 8, b: 18 };
+            const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
+            const y = (v) => pad.t + ih * (1 - v);
+            chart.setAttribute("viewBox", `0 0 ${W} ${H}`);
+            chart.replaceChildren();
+
+            // recessive grid
+            [0, 0.5, 1].forEach(v => {
+                chart.appendChild(svg("line", { x1: pad.l, x2: W - pad.r, y1: y(v), y2: y(v), stroke: "#dde3e9" }));
+                const lab = svg("text", { x: pad.l - 5, y: y(v) + 3, "text-anchor": "end", "font-size": 10, fill: "#5d6c7b" });
+                lab.textContent = v.toFixed(1);
+                chart.appendChild(lab);
+            });
+
+            if (!history.length) {
+                const e = svg("text", { x: pad.l + iw / 2, y: pad.t + ih / 2, "text-anchor": "middle", "font-size": 12, fill: "#5d6c7b" });
+                e.textContent = "No messages yet";
+                chart.appendChild(e);
+            }
+
+            const slot = iw / Math.max(history.length, 8);
+            const bw = Math.max(4, Math.min(28, slot - 2));  // 2px gap between bars
+            history.forEach((h, i) => {
+                const x = pad.l + i * slot + (slot - bw) / 2;
+                const hot = h.score >= t;
+                const top = y(h.score), base = y(0);
+                const r = Math.min(4, bw / 2, base - top);
+                // flat at the baseline, 4px rounded data end
+                const d = `M${x},${base} V${top + r} Q${x},${top} ${x + r},${top} H${x + bw - r} Q${x + bw},${top} ${x + bw},${top + r} V${base} Z`;
+                const hit = svg("rect", { class: "hit", x: pad.l + i * slot, y: pad.t, width: slot, height: ih, fill: "transparent" });
+                const bar = svg("path", { class: "bar", d, fill: hot ? "var(--block)" : "var(--pass)" });
+                const show = () => {
+                    bar.classList.add("active");
+                    tip.hidden = false;
+                    tip.textContent = `#${i + 1} · ${h.score.toFixed(3)} · ${h.blocked ? "was blocked" : "was passed"} at ${h.threshold.toFixed(2)}` +
+                        (hot !== h.blocked ? ` (would ${hot ? "block" : "pass"} now)` : "") + `\n“${h.text.slice(0, 60)}${h.text.length > 60 ? "…" : ""}”`;
+                    tip.style.whiteSpace = "pre-wrap";
+                    tip.style.left = Math.min(Math.max(x + bw / 2, 116), W - 116) + "px";
+                    tip.style.top = (top - 6) + "px";
+                };
+                const hide = () => { bar.classList.remove("active"); tip.hidden = true; };
+                hit.addEventListener("mouseenter", show);
+                hit.addEventListener("mouseleave", hide);
+                chart.append(hit, bar);
+                const n = svg("text", { x: x + bw / 2, y: H - 5, "text-anchor": "middle", "font-size": 10, fill: "#5d6c7b" });
+                n.textContent = i + 1;
+                chart.appendChild(n);
+            });
+
+            // threshold reference line, drawn on top
+            chart.appendChild(svg("line", { x1: pad.l, x2: W - pad.r, y1: y(t), y2: y(t), stroke: "#1b2a3a", "stroke-width": 1.5, "stroke-dasharray": "4 3" }));
+            const tl = svg("text", { x: W - pad.r, y: y(t) - 4, "text-anchor": "end", "font-size": 10, fill: "#1b2a3a" });
+            tl.textContent = `threshold ${t.toFixed(2)}`;
+            chart.appendChild(tl);
+
+            // tiles + accessible table
+            $("nSent").textContent = history.length;
+            $("nBlocked").textContent = history.filter(h => h.blocked).length;
+            const lat = history.map(h => h.decider_ms).sort((a, b) => a - b);
+            $("nLat").textContent = lat.length ? Math.round(lat[Math.floor(lat.length / 2)]) : "–";
+            const tb = $("histTable").querySelector("tbody");
+            tb.replaceChildren(...history.map((h, i) => {
+                const tr = el("tr");
+                [i + 1, h.text, h.score.toFixed(3), h.blocked ? "blocked" : "passed"].forEach(v => tr.appendChild(el("td", "", String(v))));
+                return tr;
+            }));
+        }
+        renderHistory();
+        window.addEventListener("resize", renderHistory);
+    </script>
+</body>
+
+</html>
