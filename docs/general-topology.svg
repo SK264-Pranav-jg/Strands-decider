@@ -1,0 +1,123 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="780" viewBox="0 0 1400 780" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1b2a3a"/>
+    </marker>
+    <style>
+      .box { fill: #fbfcfd; stroke: #c9d1d9; stroke-width: 1.5; }
+      .new { fill: #f3f6fe; stroke: #2a5bd7; stroke-width: 2; }
+      .t { font-size: 15px; font-weight: 650; fill: #1b2a3a; }
+      .s { font-size: 12.5px; fill: #5d6c7b; }
+      .mono { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 11.5px; fill: #1b2a3a; }
+      .lab { font-size: 12px; font-weight: 700; letter-spacing: .06em; fill: #5d6c7b; }
+      .ln { stroke: #1b2a3a; stroke-width: 1.5; fill: none; }
+    </style>
+  </defs>
+
+  <rect width="1400" height="780" fill="#eef1f4"/>
+  <text x="30" y="44" font-size="22" font-weight="650" fill="#1b2a3a">Strands agents and a shared decider service on Amazon ECS</text>
+  <text x="30" y="68" class="s" font-size="14">One private decider service answers decisions for every Strands agent. Each check is a stateless HTTP call.</text>
+
+  <!-- users -->
+  <rect class="box" x="30" y="320" width="120" height="64" rx="6"/>
+  <text x="90" y="348" class="t" text-anchor="middle">Clients</text>
+  <text x="90" y="368" class="s" text-anchor="middle" font-size="11.5">apps · users</text>
+
+  <!-- frames -->
+  <rect x="180" y="96" width="1200" height="636" rx="10" fill="none" stroke="#1b2a3a" stroke-width="1.5"/>
+  <text x="198" y="120" class="lab">AWS CLOUD · REGION</text>
+  <rect x="200" y="134" width="880" height="582" rx="8" fill="#ffffff" stroke="#5d6c7b" stroke-dasharray="6 4"/>
+  <text x="216" y="158" class="lab">VPC</text>
+
+  <rect x="220" y="172" width="168" height="528" rx="6" fill="#f6f8fa" stroke="#c9d1d9"/>
+  <text x="234" y="194" class="lab">PUBLIC SUBNETS</text>
+
+  <rect x="406" y="172" width="656" height="528" rx="6" fill="#f6f8fa" stroke="#c9d1d9"/>
+  <text x="420" y="194" class="lab">PRIVATE SUBNETS · 2+ AZs</text>
+
+  <line class="ln" x1="150" y1="352" x2="238" y2="352" marker-end="url(#a)"/>
+  <!-- ALB -->
+  <rect class="box" x="240" y="312" width="130" height="80" rx="6"/>
+  <text x="305" y="347" class="t" text-anchor="middle">Application</text>
+  <text x="305" y="367" class="t" text-anchor="middle">Load Balancer</text>
+  <line class="ln" x1="370" y1="352" x2="422" y2="352" marker-end="url(#a)"/>
+
+  <!-- existing strands services -->
+  <rect x="424" y="208" width="290" height="474" rx="8" fill="#ffffff" stroke="#c9d1d9" stroke-width="1.5"/>
+  <text x="440" y="232" class="lab">EXISTING STRANDS SERVICES</text>
+  <text x="440" y="248" class="s" font-size="11.5">ECS Fargate · scale as they do today</text>
+
+  <rect class="box" x="440" y="262" width="258" height="78" rx="6"/>
+  <text x="456" y="290" class="t">Chat / assistant agent</text>
+  <text x="456" y="311" class="s">guardrails · model routing</text>
+  <text x="456" y="328" class="s">answer quality checks</text>
+
+  <rect class="box" x="440" y="352" width="258" height="78" rx="6"/>
+  <text x="456" y="380" class="t">Task / ops agent</text>
+  <text x="456" y="401" class="s">tool-call approval</text>
+  <text x="456" y="418" class="s">tool result checks</text>
+
+  <rect class="box" x="440" y="442" width="258" height="78" rx="6"/>
+  <text x="456" y="470" class="t">Background workers</text>
+  <text x="456" y="491" class="s">queue / batch jobs: classify,</text>
+  <text x="456" y="508" class="s">tag and score at volume</text>
+
+  <rect class="new" x="440" y="536" width="258" height="130" rx="6"/>
+  <text x="456" y="562" class="t" font-size="14" style="fill:#2a5bd7">The only change in each</text>
+  <text x="456" y="588" class="s">+ decision hooks in <tspan class="mono">hooks=[...]</tspan></text>
+  <text x="456" y="610" class="s">+ <tspan class="mono">DECIDER_URL</tspan> env var</text>
+  <text x="456" y="632" class="s">+ agent-sg allowed into decider-sg</text>
+  <text x="456" y="654" class="s">model, tools, prompts unchanged</text>
+
+  <!-- to decider -->
+  <line class="ln" x1="714" y1="330" x2="782" y2="330" marker-end="url(#a)"/>
+  <text x="748" y="306" class="s" text-anchor="middle" font-size="11" font-weight="600" style="fill:#1b2a3a">Service</text>
+  <text x="748" y="320" class="s" text-anchor="middle" font-size="11" font-weight="600" style="fill:#1b2a3a">Connect</text>
+
+  <!-- decider -->
+  <rect class="new" x="784" y="230" width="258" height="214" rx="6"/>
+  <text x="800" y="258" class="t">Decider service</text>
+  <text x="800" y="278" class="s">ECS Fargate · CPU · new · shared</text>
+  <text x="800" y="306" class="mono">POST /v1/systemone</text>
+  <text x="800" y="324" class="mono">http://decider:9000</text>
+  <text x="800" y="350" class="s">noul · choice · score questions</text>
+  <text x="800" y="370" class="s">stateless, no conversation data</text>
+  <text x="800" y="390" class="s">min 2 tasks across AZs</text>
+  <text x="800" y="410" class="s">auto scaling on CPU</text>
+  <text x="800" y="430" class="s">health check: GET /health</text>
+
+  <rect x="784" y="458" width="258" height="96" rx="6" fill="#fffaf0" stroke="#d9c8a0"/>
+  <text x="800" y="482" class="t" font-size="14">decider-sg</text>
+  <text x="800" y="502" class="s">inbound :9000 from agent SGs only</text>
+  <text x="800" y="520" class="s">no public IP · no built-in auth</text>
+  <text x="800" y="538" class="s">model weights baked into image</text>
+
+  <!-- to LLM -->
+  <line class="ln" x1="714" y1="612" x2="1038" y2="612" marker-end="url(#a)"/>
+  <text x="876" y="596" class="s" text-anchor="middle" font-size="11.5">only when an LLM is actually needed</text>
+  <rect x="1040" y="597" width="80" height="30" rx="15" fill="#ffffff" stroke="#1b2a3a"/>
+  <text x="1080" y="616" text-anchor="middle" font-size="11" fill="#1b2a3a">VPC endpoint</text>
+  <line class="ln" x1="1120" y1="612" x2="1138" y2="612" marker-end="url(#a)"/>
+
+  <!-- aws services -->
+  <rect class="box" x="1140" y="572" width="222" height="80" rx="6"/>
+  <text x="1156" y="604" class="t">Amazon Bedrock</text>
+  <text x="1156" y="626" class="s">the LLM your agents use</text>
+
+  <text x="1140" y="196" class="lab">SUPPORTING SERVICES</text>
+  <rect class="box" x="1140" y="208" width="222" height="70" rx="6"/>
+  <text x="1156" y="236" class="t">Amazon ECR</text>
+  <text x="1156" y="258" class="s">agent images · decider image</text>
+
+  <rect class="box" x="1140" y="290" width="222" height="88" rx="6"/>
+  <text x="1156" y="318" class="t">Parameter Store</text>
+  <text x="1156" y="340" class="s">decider questions and</text>
+  <text x="1156" y="358" class="s">thresholds, tuned live</text>
+
+  <rect class="box" x="1140" y="390" width="222" height="88" rx="6"/>
+  <text x="1156" y="418" class="t">Amazon CloudWatch</text>
+  <text x="1156" y="440" class="s">decision scores and latency</text>
+  <text x="1156" y="458" class="s">no message text in logs</text>
+
+  <text x="30" y="760" class="s" font-size="13">Blue = new. Private tasks reach ECR, S3 and CloudWatch Logs through VPC endpoints. Moving the decider to GPU later only changes DECIDER_URL.</text>
+</svg>

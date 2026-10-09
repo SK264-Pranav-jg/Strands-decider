@@ -27,6 +27,23 @@ The demo sends the UI's threshold and decider question to the hook through
 `invocation_state["decider"]`, and the hook writes the score, breakdown and timings back
 into the same dict for the frontend.
 
+## Routing with `choice` questions
+
+The same decider request also asks two `choice` questions (`agent/router.py`):
+
+- **team**: billing / support / sales / general. Picks the specialist system prompt.
+- **complexity**: simple / complex. Simple requests go to Haiku 4.5, complex ones to
+  Sonnet 5.5.
+
+A team pick whose confidence is below the **route confidence floor** (default 0.3,
+adjustable in the UI) falls back to the general agent. There is one agent, and only its
+system prompt and model change per turn, so the conversation history is shared across
+specialists. The endpoint passes the PII verdict from the batched call to the hook as
+`invocation_state["decider"]["precomputed"]`, so the decider is asked once per message;
+used on its own, the hook calls the decider itself.
+
+## The PII questions
+
 Each request asks the decider 7 yes/no (`noul`) questions over the same message in one call:
 the main `has_pii` question, which decides the block, plus one per PII type (name, email,
 phone, address, government ID, payment card) to explain the verdict. The decider shares one
@@ -61,7 +78,9 @@ forward pass over the message across all of them.
 |---|---|
 | `DECIDER_URL` | `http://localhost:9000` |
 | `AWS_REGION` | `ap-south-1` |
-| `BEDROCK_MODEL_ID` | `global.anthropic.claude-haiku-4-5-20251001-v1:0` |
+| `BEDROCK_MODEL_ID` | `global.anthropic.claude-haiku-4-5-20251001-v1:0` (before the first route) |
+| `SIMPLE_MODEL_ID` | `global.anthropic.claude-haiku-4-5-20251001-v1:0` |
+| `COMPLEX_MODEL_ID` | `global.anthropic.claude-sonnet-5-5` |
 | `MOCK_LLM` | off |
 
 ## What the UI shows
@@ -78,7 +97,7 @@ forward pass over the message across all of them.
 
 | Method | Path | |
 |---|---|---|
-| POST | `/api/chat` | `{message, threshold, instructions?}` → score, categories, blocked, reply, timings |
+| POST | `/api/chat` | `{message, threshold, instructions?, route_floor?}` → score, categories, route, blocked, reply, timings |
 | POST | `/api/score` | `{message, instructions?}` → score and categories only |
 | POST | `/api/reset` | clears the agent's conversation history |
 | GET | `/api/defaults` | default question and threshold, mock mode flag |

@@ -581,6 +581,103 @@
             clip: rect(0 0 0 0);
         }
 
+        /* routing (choice answers) */
+        .route {
+            margin-top: 12px;
+            padding-top: 10px;
+            border-top: 1px solid var(--line);
+            font-size: 13px;
+        }
+
+        .route.unused {
+            opacity: .6;
+        }
+
+        .route .rhead {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            gap: 8px;
+        }
+
+        .route .dest {
+            font-weight: 650;
+        }
+
+        .route .note {
+            color: var(--muted);
+            font-size: 12px;
+            margin-top: 2px;
+        }
+
+        .opts {
+            display: grid;
+            grid-template-columns: 110px 1fr 44px;
+            align-items: center;
+            gap: 5px 10px;
+            margin-top: 6px;
+            font-size: 13px;
+        }
+
+        .opts .sub {
+            grid-column: 1 / -1;
+            font-size: 11px;
+            color: var(--muted);
+            letter-spacing: .04em;
+            text-transform: uppercase;
+            margin-top: 6px;
+        }
+
+        .opts .lab {
+            color: var(--muted);
+        }
+
+        .opts .lab.on {
+            color: var(--ink);
+            font-weight: 600;
+        }
+
+        .opts .v {
+            text-align: right;
+        }
+
+        .bar {
+            position: relative;
+            height: 6px;
+            background: var(--track);
+            border-radius: 4px;
+        }
+
+        .bar .fill {
+            position: absolute;
+            inset: 0 auto 0 0;
+            border-radius: 4px;
+            background: #9aa8b6;
+        }
+
+        .bar.on .fill {
+            background: var(--ink);
+        }
+
+        .badge {
+            font-size: 12px;
+            color: var(--muted);
+            margin: 0 0 4px 2px;
+        }
+
+        .examples h3 {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--muted);
+            margin: 8px 0 0;
+        }
+
+        @media (prefers-reduced-motion: no-preference) {
+            .bar .fill {
+                transition: width .35s ease-out;
+            }
+        }
+
         @media (prefers-reduced-motion: no-preference) {
             .gauge .fill {
                 transition: width .35s ease-out;
@@ -594,13 +691,14 @@
         <main>
             <header>
                 <h1>PII Decider</h1>
-                <p id="lede">Every message goes to a local strands-decider model first. If it looks like it contains
-                    personal information, it is blocked and never reaches Bedrock.</p>
+                <p id="lede">Every message goes to a local strands-decider model first. In one call it checks for
+                    personal information, which is blocked and never reaches Bedrock, and routes everything else to a
+                    specialist agent and the right model tier.</p>
                 <div class="flow" aria-hidden="true">
                     <span class="step">Your message</span>&rarr;
-                    <span class="step">strands-decider (local, noul score)</span>&rarr;
-                    <span class="step">score &ge; threshold? block</span>&rarr;
-                    <span class="step">Bedrock LLM</span>
+                    <span class="step">strands-decider: PII (noul) + route (choice), one call</span>&rarr;
+                    <span class="step">PII? block</span>&rarr;
+                    <span class="step">specialist agent on Haiku or Sonnet</span>
                 </div>
             </header>
             <div id="log" aria-live="polite">
@@ -638,6 +736,36 @@
                 <input type="range" id="thr" min="0.05" max="0.95" step="0.05" value="0.5" aria-label="Block threshold">
                 <label class="toggle" style="margin-top:10px"><input type="checkbox" id="liveToggle" checked> Score
                     live while typing (never calls the LLM)</label>
+            </section>
+
+            <section>
+                <div class="row">
+                    <h2>Route confidence floor</h2><span class="num" id="floorv">0.30</span>
+                </div>
+                <p class="hint">The decider picks a team with a confidence from 0 (a coin toss) to 1 (certain). Picks
+                    below this floor fall back to the general agent.</p>
+                <input type="range" id="floor" min="0" max="0.95" step="0.05" value="0.3"
+                    aria-label="Route confidence floor">
+            </section>
+
+            <section>
+                <h2>Routing</h2>
+                <p class="hint">Where the messages that passed the gate went. Simple requests go to the cheaper model.</p>
+                <div class="tiles">
+                    <div class="tile">
+                        <div class="n num" id="nRouted">0</div>
+                        <div class="k">routed</div>
+                    </div>
+                    <div class="tile">
+                        <div class="n num" id="nCheap">0</div>
+                        <div class="k">on the cheaper model</div>
+                    </div>
+                    <div class="tile">
+                        <div class="n num" id="nFallback">0</div>
+                        <div class="k">low-confidence fallbacks</div>
+                    </div>
+                </div>
+                <div class="opts" id="routeStats"></div>
             </section>
 
             <section>
@@ -700,15 +828,23 @@
     </div>
 
     <script>
-        const EXAMPLES = [
-            "How do I reset my password?",
-            "My card number is 4111 1111 1111 1111",
-            "You can call me on 98765 43210",
-            "My daughter Priya lives at 12 Oak Street",
-            "I am Rahul Sharma and my PAN is ABCDE1234F",
-            "Please email support@company.com about this",
-            "What are your opening hours on weekends?"
-        ];
+        const EXAMPLES = {
+            "PII gate": [
+                "My card number is 4111 1111 1111 1111",
+                "You can call me on 98765 43210",
+                "My daughter Priya lives at 12 Oak Street",
+                "I am Rahul Sharma and my PAN is ABCDE1234F",
+                "Please email support@company.com about this"
+            ],
+            "Routing": [
+                "I was charged twice for my subscription this month",
+                "The app crashes every time I open the settings page",
+                "Do you offer a discount for nonprofits?",
+                "Compare your Pro and Enterprise plans for a 40-person team that needs SSO and audit logs, and recommend one",
+                "Our webhook deliveries fail with 502s since the last deploy; walk me through how to debug it",
+                "Hi there!"
+            ]
+        };
 
         // Served by FastAPI the API is same-origin. Opened from an editor's Live Server
         // (ports 5500+) or as a file, the API calls have to go to the FastAPI app.
@@ -719,7 +855,8 @@
         const thr = $("thr"), thrv = $("thrv"), instr = $("instr");
         let defaultInstructions = "";
         const CATEGORY_CUTOFF = 0.5;  // matches agent/decider_gate.py
-        const history = [];  // {text, score, blocked, decider_ms}
+        const history = [];  // {text, score, blocked, threshold, decider_ms, route}
+        let TEAMS = {}, TIERS = {};  // key -> label, from /api/defaults
 
         const pct = (x) => (Math.max(0, Math.min(1, x)) * 100) + "%";
 
@@ -755,17 +892,27 @@
         });
 
         // ---- examples ----
-        EXAMPLES.forEach((text) => {
-            const b = document.createElement("button");
-            b.type = "button"; b.className = "quiet"; b.textContent = text;
-            b.addEventListener("click", () => { msg.value = text; msg.focus(); scheduleLive(); });
-            $("examples").appendChild(b);
+        Object.entries(EXAMPLES).forEach(([group, items]) => {
+            $("examples").appendChild(el("h3", "", group));
+            items.forEach((text) => {
+                const b = document.createElement("button");
+                b.type = "button"; b.className = "quiet"; b.textContent = text;
+                b.addEventListener("click", () => { msg.value = text; msg.focus(); scheduleLive(); });
+                $("examples").appendChild(b);
+            });
         });
+
+        // ---- route confidence floor ----
+        const floor = $("floor");
+        floor.addEventListener("input", () => { $("floorv").textContent = (+floor.value).toFixed(2); });
 
         // ---- defaults & decider status ----
         fetch(API + "/api/defaults").then(r => r.json()).then(d => {
             defaultInstructions = d.instructions;
             instr.value = d.instructions;
+            TEAMS = d.teams; TIERS = d.tiers;
+            floor.value = d.route_floor; $("floorv").textContent = (+d.route_floor).toFixed(2);
+            renderHistory();
             if (d.mock_llm) $("lede").textContent += " (Mock LLM mode: Bedrock is not being called.)";
         });
         $("resetInstr").addEventListener("click", () => { instr.value = defaultInstructions; scheduleLive(); });
@@ -866,6 +1013,7 @@
             turn.classList.add(blocked ? "blocked" : "passed");
             status.replaceWith(buildCheck(r));
             const out = el("div", blocked ? "reply blockednote" : "reply");
+            if (!blocked && r.route) out.appendChild(el("div", "badge", `${r.route.label} · ${r.route.model_label}`));
             out.appendChild(el("div", "msg", r.reply ?? ""));
             turn.appendChild(out);
             log.scrollTop = log.scrollHeight;
@@ -905,6 +1053,8 @@
                 wrap.appendChild(det);
             }
 
+            if (r.route) wrap.appendChild(buildRoute(r.route, r.blocked));
+
             const facts = el("div", "facts");
             facts.appendChild(el("span", "num", `decider ${Math.round(r.decider_ms)} ms`));
             facts.appendChild(el("span", "num", `gate round-trip ${Math.round(r.gate_ms)} ms`));
@@ -912,6 +1062,41 @@
             facts.appendChild(el("span", "num", r.llm_ms != null ? `LLM ${Math.round(r.llm_ms)} ms` : "LLM not called"));
             wrap.appendChild(facts);
             return wrap;
+        }
+
+        function bar(p, on, animate = true) {
+            const b = el("div", "bar" + (on ? " on" : ""));
+            const fill = el("div", "fill"); fill.style.width = animate ? "0%" : pct(p);
+            b.appendChild(fill);
+            if (animate) requestAnimationFrame(() => { fill.style.width = pct(p); });
+            return b;
+        }
+
+        function buildRoute(rt, blocked) {
+            const box = el("div", "route" + (blocked ? " unused" : ""));
+            const head = el("div", "rhead");
+            head.append(el("span", "dest", blocked ? "Route (not used: blocked)" : `→ ${rt.label} · ${rt.model_label}`),
+                el("span", "cap num", `confidence ${rt.confidence.toFixed(2)}`));
+            box.appendChild(head);
+            if (rt.fallback) {
+                const predicted = rt.options.find(o => o.key === rt.predicted)?.label ?? rt.predicted;
+                box.appendChild(el("div", "note",
+                    `Decider picked ${predicted}, but its confidence is below the ${rt.floor.toFixed(2)} floor, so the general agent answers.`));
+            }
+
+            const grid = el("div", "opts");
+            grid.appendChild(el("span", "sub", "Team (choice)"));
+            rt.options.forEach(o => {
+                const on = o.key === rt.predicted;
+                grid.append(el("span", "lab" + (on ? " on" : ""), o.label), bar(o.p, on), el("span", "v num", o.p.toFixed(2)));
+            });
+            grid.appendChild(el("span", "sub", "Model tier (choice)"));
+            rt.tier_options.forEach(o => {
+                const on = o.key === rt.tier;
+                grid.append(el("span", "lab" + (on ? " on" : ""), o.label), bar(o.p, on), el("span", "v num", o.p.toFixed(2)));
+            });
+            box.appendChild(grid);
+            return box;
         }
 
         $("form").addEventListener("submit", async (e) => {
@@ -926,12 +1111,12 @@
                 const res = await fetch(API + "/api/chat", {
                     method: "POST",
                     headers: { "content-type": "application/json" },
-                    body: JSON.stringify({ message: text, threshold: +thr.value, instructions: instr.value })
+                    body: JSON.stringify({ message: text, threshold: +thr.value, instructions: instr.value, route_floor: +floor.value })
                 });
                 const data = await res.json().catch(() => ({}));
                 if (!res.ok) throw new Error(errText(data, res));
                 renderResult(t, data);
-                history.push({ text, score: data.score, blocked: data.blocked, threshold: data.threshold, decider_ms: data.decider_ms });
+                history.push({ text, score: data.score, blocked: data.blocked, threshold: data.threshold, decider_ms: data.decider_ms, route: data.route });
                 renderHistory();
             } catch (err) {
                 t.status.textContent = err.message;
@@ -1026,6 +1211,8 @@
             $("nBlocked").textContent = history.filter(h => h.blocked).length;
             const lat = history.map(h => h.decider_ms).sort((a, b) => a - b);
             $("nLat").textContent = lat.length ? Math.round(lat[Math.floor(lat.length / 2)]) : "–";
+            renderRouteStats();
+
             const tb = $("histTable").querySelector("tbody");
             tb.replaceChildren(...history.map((h, i) => {
                 const tr = el("tr");
@@ -1033,6 +1220,25 @@
                 return tr;
             }));
         }
+        function renderRouteStats() {
+            const routed = history.filter(h => !h.blocked && h.route);
+            $("nRouted").textContent = routed.length;
+            $("nCheap").textContent = routed.filter(h => h.route.tier === "simple").length;
+            $("nFallback").textContent = routed.filter(h => h.route.fallback).length;
+            const grid = $("routeStats");
+            grid.replaceChildren();
+            const rows = (title, labels, keyOf) => {
+                grid.appendChild(el("span", "sub", title));
+                Object.entries(labels).forEach(([key, label]) => {
+                    const n = routed.filter(h => keyOf(h) === key).length;
+                    grid.append(el("span", "lab" + (n ? " on" : ""), label),
+                        bar(routed.length ? n / routed.length : 0, n > 0, false), el("span", "v num", String(n)));
+                });
+            };
+            rows("By team", TEAMS, h => h.route.team);
+            rows("By model", TIERS, h => h.route.tier);
+        }
+
         renderHistory();
         window.addEventListener("resize", renderHistory);
     </script>

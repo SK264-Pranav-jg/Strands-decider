@@ -1,0 +1,169 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="830" viewBox="0 0 1400 830" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1b2a3a"/>
+    </marker>
+    <style>
+      .box { fill: #fbfcfd; stroke: #c9d1d9; stroke-width: 1.5; }
+      .new { fill: #f3f6fe; stroke: #2a5bd7; stroke-width: 2; }
+      .t { font-size: 15px; font-weight: 650; fill: #1b2a3a; }
+      .s { font-size: 12.5px; fill: #5d6c7b; }
+      .q { font-size: 13px; fill: #1b2a3a; font-style: italic; }
+      .act { font-size: 12.5px; fill: #1b2a3a; }
+      .hook { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 11.5px; fill: #2a5bd7; }
+      .mono { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 12px; fill: #1b2a3a; }
+      .lab { font-size: 12px; font-weight: 700; letter-spacing: .07em; fill: #5d6c7b; }
+      .ln { stroke: #1b2a3a; stroke-width: 1.5; fill: none; }
+      .pin { fill: #2a5bd7; stroke: #ffffff; stroke-width: 2; }
+      .pn { font-size: 12px; font-weight: 700; fill: #ffffff; }
+      .pill { fill: #ffffff; stroke: #2a5bd7; }
+      .pt { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 11px; fill: #2a5bd7; font-weight: 600; }
+    </style>
+  </defs>
+
+  <rect width="1400" height="830" fill="#eef1f4"/>
+  <text x="26" y="44" font-size="22" font-weight="650" fill="#1b2a3a">Adding a decision model to an existing Strands agent</text>
+  <text x="26" y="68" class="s" font-size="14">The decider makes the small, frequent decisions (yes/no, pick one, rate it). The LLM keeps the work that needs reasoning or writing.</text>
+
+  <!-- lifecycle lane -->
+  <rect x="24" y="90" width="1352" height="230" rx="10" fill="#ffffff" stroke="#c9d1d9"/>
+  <text x="44" y="116" class="lab">AGENT REQUEST LIFECYCLE · blue pins = where a decider check can plug in</text>
+
+  <rect class="box" x="44" y="170" width="110" height="80" rx="6"/>
+  <text x="99" y="215" class="t" text-anchor="middle">Request</text>
+  <line class="ln" x1="154" y1="210" x2="184" y2="210" marker-end="url(#a)"/>
+
+  <rect class="new" x="186" y="170" width="150" height="80" rx="6"/>
+  <text x="261" y="205" class="t" text-anchor="middle">Router</text>
+  <text x="261" y="226" class="s" text-anchor="middle">your app code</text>
+  <circle class="pin" cx="261" cy="170" r="13"/><text x="261" y="174.5" class="pn" text-anchor="middle">1</text>
+
+  <!-- agent frame -->
+  <rect x="368" y="128" width="868" height="176" rx="8" fill="#f6f8fa" stroke="#c9d1d9"/>
+  <text x="384" y="148" class="lab">STRANDS AGENT · invoke_async()</text>
+  <line class="ln" x1="336" y1="210" x2="448" y2="210" marker-end="url(#a)"/>
+  <circle class="pin" cx="400" cy="210" r="13"/><text x="400" y="214.5" class="pn" text-anchor="middle">2</text>
+
+  <rect class="box" x="450" y="162" width="180" height="90" rx="6"/>
+  <text x="540" y="202" class="t" text-anchor="middle">Model call</text>
+  <text x="540" y="223" class="s" text-anchor="middle">LLM (e.g. Bedrock)</text>
+
+  <rect class="box" x="790" y="162" width="180" height="90" rx="6"/>
+  <text x="880" y="202" class="t" text-anchor="middle">Tool call</text>
+  <text x="880" y="223" class="s" text-anchor="middle">your tools</text>
+
+  <line class="ln" x1="630" y1="190" x2="788" y2="190" marker-end="url(#a)"/>
+  <line class="ln" x1="790" y1="228" x2="632" y2="228" marker-end="url(#a)"/>
+  <text x="710" y="181" class="s" text-anchor="middle" font-size="11">tool use</text>
+  <text x="710" y="260" class="s" text-anchor="middle" font-size="11">tool result</text>
+  <circle class="pin" cx="660" cy="190" r="13"/><text x="660" y="194.5" class="pn" text-anchor="middle">3</text>
+  <circle class="pin" cx="760" cy="190" r="13"/><text x="760" y="194.5" class="pn" text-anchor="middle">4</text>
+  <circle class="pin" cx="710" cy="228" r="13"/><text x="710" y="232.5" class="pn" text-anchor="middle">5</text>
+
+  <!-- loop note -->
+  <text x="1000" y="202" class="s" font-size="11.5">repeats until the model</text>
+  <text x="1000" y="218" class="s" font-size="11.5">stops asking for tools</text>
+
+  <!-- exit -->
+  <path class="ln" d="M540,252 V274 H1244 V210 H1248" marker-end="url(#a)"/>
+  <text x="560" y="292" class="s" font-size="11">final answer</text>
+  <circle class="pin" cx="1150" cy="274" r="13"/><text x="1150" y="278.5" class="pn" text-anchor="middle">6</text>
+
+  <rect class="box" x="1250" y="170" width="110" height="80" rx="6"/>
+  <text x="1305" y="215" class="t" text-anchor="middle">Response</text>
+
+  <!-- cards -->
+  <g>
+    <rect class="new" x="26" y="345" width="213" height="240" rx="8"/>
+    <circle class="pin" cx="48" cy="372" r="12"/><text x="48" y="376.5" class="pn" text-anchor="middle">1</text>
+    <text x="68" y="377" class="t" font-size="14.5">Model routing</text>
+    <text x="42" y="404" class="s" font-size="11.5">your app, before invoke</text>
+    <rect class="pill" x="42" y="414" width="60" height="20" rx="10"/><text x="72" y="428" class="pt" text-anchor="middle">choice</text>
+    <text x="42" y="460" class="q">“How complex is this</text>
+    <text x="42" y="478" class="q">request? simple / complex”</text>
+    <line x1="42" y1="496" x2="223" y2="496" stroke="#c9d1d9"/>
+    <text x="42" y="518" class="act">→ send simple requests</text>
+    <text x="42" y="536" class="act">   to a cheaper model</text>
+  </g>
+  <g>
+    <rect class="new" x="253" y="345" width="213" height="240" rx="8"/>
+    <circle class="pin" cx="275" cy="372" r="12"/><text x="275" y="376.5" class="pn" text-anchor="middle">2</text>
+    <text x="295" y="377" class="t" font-size="14.5">Input guardrail</text>
+    <text x="269" y="404" class="hook">BeforeInvocationEvent</text>
+    <rect class="pill" x="269" y="414" width="52" height="20" rx="10"/><text x="295" y="428" class="pt" text-anchor="middle">noul</text>
+    <text x="269" y="460" class="q">“Does this request break</text>
+    <text x="269" y="478" class="q">our usage policy?”</text>
+    <line x1="269" y1="496" x2="450" y2="496" stroke="#c9d1d9"/>
+    <text x="269" y="518" class="act">→ <tspan class="mono">event.cancel</tspan></text>
+    <text x="269" y="536" class="act">   the LLM is never called</text>
+  </g>
+  <g>
+    <rect class="new" x="480" y="345" width="213" height="240" rx="8"/>
+    <circle class="pin" cx="502" cy="372" r="12"/><text x="502" y="376.5" class="pn" text-anchor="middle">3</text>
+    <text x="522" y="377" class="t" font-size="14.5">Answer quality</text>
+    <text x="496" y="404" class="hook">AfterModelCallEvent</text>
+    <rect class="pill" x="496" y="414" width="56" height="20" rx="10"/><text x="524" y="428" class="pt" text-anchor="middle">score</text>
+    <text x="496" y="460" class="q">“Does this answer meet</text>
+    <text x="496" y="478" class="q">the requirement?”</text>
+    <line x1="496" y1="496" x2="677" y2="496" stroke="#c9d1d9"/>
+    <text x="496" y="518" class="act">→ <tspan class="mono">event.retry</tspan></text>
+    <text x="496" y="536" class="act">   discards it, asks again</text>
+  </g>
+  <g>
+    <rect class="new" x="707" y="345" width="213" height="240" rx="8"/>
+    <circle class="pin" cx="729" cy="372" r="12"/><text x="729" y="376.5" class="pn" text-anchor="middle">4</text>
+    <text x="749" y="377" class="t" font-size="14.5">Tool-call approval</text>
+    <text x="723" y="404" class="hook">BeforeToolCallEvent</text>
+    <rect class="pill" x="723" y="414" width="52" height="20" rx="10"/><text x="749" y="428" class="pt" text-anchor="middle">noul</text>
+    <text x="723" y="460" class="q">“Is this tool call safe</text>
+    <text x="723" y="478" class="q">and allowed to run?”</text>
+    <line x1="723" y1="496" x2="904" y2="496" stroke="#c9d1d9"/>
+    <text x="723" y="518" class="act">→ <tspan class="mono">event.cancel_tool</tspan></text>
+    <text x="723" y="536" class="act">   or swap <tspan class="mono">selected_tool</tspan></text>
+  </g>
+  <g>
+    <rect class="new" x="934" y="345" width="213" height="240" rx="8"/>
+    <circle class="pin" cx="956" cy="372" r="12"/><text x="956" y="376.5" class="pn" text-anchor="middle">5</text>
+    <text x="976" y="377" class="t" font-size="14.5">Tool result check</text>
+    <text x="950" y="404" class="hook">AfterToolCallEvent</text>
+    <rect class="pill" x="950" y="414" width="52" height="20" rx="10"/><text x="976" y="428" class="pt" text-anchor="middle">noul</text>
+    <text x="950" y="460" class="q">“Did the tool return</text>
+    <text x="950" y="478" class="q">what was asked for?”</text>
+    <line x1="950" y1="496" x2="1131" y2="496" stroke="#c9d1d9"/>
+    <text x="950" y="518" class="act">→ <tspan class="mono">event.retry</tspan></text>
+    <text x="950" y="536" class="act">   or rewrite <tspan class="mono">event.result</tspan></text>
+  </g>
+  <g>
+    <rect class="new" x="1161" y="345" width="213" height="240" rx="8"/>
+    <circle class="pin" cx="1183" cy="372" r="12"/><text x="1183" y="376.5" class="pn" text-anchor="middle">6</text>
+    <text x="1203" y="377" class="t" font-size="14.5">Completion check</text>
+    <text x="1177" y="404" class="hook">AfterInvocationEvent</text>
+    <rect class="pill" x="1177" y="414" width="52" height="20" rx="10"/><text x="1203" y="428" class="pt" text-anchor="middle">noul</text>
+    <text x="1177" y="460" class="q">“Is the user's task</text>
+    <text x="1177" y="478" class="q">fully done?”</text>
+    <line x1="1177" y1="496" x2="1358" y2="496" stroke="#c9d1d9"/>
+    <text x="1177" y="518" class="act">→ <tspan class="mono">event.resume</tspan></text>
+    <text x="1177" y="536" class="act">   the agent keeps going</text>
+  </g>
+  <text x="26" y="608" class="s" font-size="12">Pick only the checks you need. Every card is the same pattern: send the text plus a question to the decider, act on the score.</text>
+
+  <!-- bottom panels -->
+  <rect class="box" x="26" y="625" width="667" height="180" rx="8"/>
+  <text x="48" y="655" class="t">What changes in your existing agent</text>
+  <g font-size="13.5" fill="#1b2a3a">
+    <text x="48" y="686"><tspan fill="#2a5bd7" font-weight="700">+  </tspan>One HookProvider per decision, passed as <tspan class="mono">hooks=[...]</tspan> to <tspan class="mono">Agent(...)</tspan></text>
+    <text x="48" y="712"><tspan fill="#2a5bd7" font-weight="700">+  </tspan>A shared decider HTTP client, pointed at <tspan class="mono">DECIDER_URL</tspan></text>
+    <text x="48" y="738"><tspan fill="#2a5bd7" font-weight="700">+  </tspan>Questions and thresholds kept in config, so they can be tuned without code</text>
+    <text x="48" y="772"><tspan fill="#0f7f82" font-weight="700">✓  </tspan>Unchanged: model, tools, system prompt, sessions, how users call the agent</text>
+  </g>
+
+  <rect class="box" x="707" y="625" width="667" height="180" rx="8"/>
+  <text x="729" y="655" class="t">Rules of thumb</text>
+  <g font-size="13.5" fill="#1b2a3a">
+    <text x="729" y="686">•  Ask several questions about the same text in one call: it is cheaper than several calls</text>
+    <text x="729" y="712">•  Every check adds latency (about 1.5 s per call on CPU), so add only what you need</text>
+    <text x="729" y="738">•  Guardrails fail closed; routing and quality checks fail open</text>
+    <text x="729" y="764">•  Tune each threshold on labelled examples from your own traffic</text>
+    <text x="729" y="790">•  Anything that needs reasoning or written text stays with the LLM</text>
+  </g>
+</svg>

@@ -68,11 +68,17 @@ class DeciderClient:
         # the first call after the decider starts can be slow while it warms up
         self.http = httpx.AsyncClient(base_url=base_url, timeout=60.0)
 
-    async def pii_score(self, text: str, instructions: str = DEFAULT_INSTRUCTIONS) -> dict:
-        """Ask the decider whether the text has PII, plus one question per category."""
+    async def pii_score(self, text: str, instructions: str = DEFAULT_INSTRUCTIONS,
+                        extra_questions: dict | None = None) -> dict:
+        """Ask the decider whether the text has PII, plus one question per category.
+
+        `extra_questions` ride along in the same request (one forward pass over the
+        text); their raw answers come back under `extra`.
+        """
         questions = {"has_pii": {"type": "noul", "instructions": instructions}}
         for key, (_, question) in CATEGORIES.items():
             questions[key] = {"type": "noul", "instructions": question}
+        questions.update(extra_questions or {})
 
         try:
             r = await self.http.post("/v1/systemone", json={"state": text, "questions": questions})
@@ -95,6 +101,7 @@ class DeciderClient:
             ],
             "decider_ms": body.get("latency_ms", 0.0),
             "tokens": body.get("usage", {}).get("input_tokens"),
+            "extra": {key: answers[key] for key in extra_questions or {}},
         }
 
     async def health(self) -> dict:
@@ -126,18 +133,23 @@ class DeciderGate(HookProvider):
         threshold = state.get("threshold", self.threshold)
         instructions = state.get("instructions") or self.instructions
 
-        t0 = time.perf_counter()
-        try:
-            result = await self.client.pii_score(text, instructions)
-        except DeciderError as e:
-            # fail closed: without a verdict the message must not reach the model
-            state.update(error=str(e), blocked=True)
-            event.cancel = UNAVAILABLE_REPLY
-            return
+        # The caller may already have asked the decider about this exact message
+        # (the demo batches PII and routing questions into one request). Reuse that
+        # verdict instead of asking twice; on its own the hook calls the decider itself.
+        result = state.pop("precomputed", None)
+        if result is None:
+            t0 = time.perf_counter()
+            try:
+                result = await self.client.pii_score(text, instructions)
+            except DeciderError as e:
+                # fail closed: without a verdict the message must not reach the model
+                state.update(error=str(e), blocked=True)
+                event.cancel = UNAVAILABLE_REPLY
+                return
+            state["gate_ms"] = (time.perf_counter() - t0) * 1000
 
         blocked = result["score"] >= threshold
-        state.update(result, threshold=threshold, blocked=blocked,
-                     gate_ms=(time.perf_counter() - t0) * 1000)
+        state.update(result, threshold=threshold, blocked=blocked)
         # log the decision, never the message text
         log.info("gate score=%.3f threshold=%.2f blocked=%s", result["score"], threshold, blocked)
 
@@ -163,4 +175,6 @@ class MockLLM(HookProvider):
         if event.cancel:
             return
         text = " ".join(c["text"] for m in event.messages or [] for c in m["content"] if "text" in c).strip()
-        event.cancel = f"(mock LLM) Your message passed the PII gate. You said: {text}"
+        route = event.invocation_state.get("route")
+        via = f" via the {route['label']} on {route['model_label']}" if route else ""
+        event.cancel = f"(mock LLM{via}) Your message passed the PII gate. You said: {text}"

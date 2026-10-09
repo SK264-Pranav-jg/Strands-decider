@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 STATIC = Path(__file__).resolve().parent
 load_dotenv(STATIC / ".env")
 
-from agent.agent import create_agent
+from agent.agent import create_agent, get_model
 from agent.decider_gate import (
     DEFAULT_INSTRUCTIONS,
     DEFAULT_THRESHOLD,
@@ -26,6 +26,14 @@ from agent.decider_gate import (
     DeciderError,
     DeciderGate,
     MockLLM,
+)
+from agent.router import (
+    DEFAULT_ROUTE_FLOOR,
+    ROUTE_QUESTIONS,
+    TEAMS,
+    TIERS,
+    choose_route,
+    system_prompt_for,
 )
 
 log = logging.getLogger("pii-gate")
@@ -39,6 +47,8 @@ class ChatRequest(BaseModel):
     message: str
     threshold: float = Field(DEFAULT_THRESHOLD, ge=0.0, le=1.0)
     instructions: str | None = None
+    # team picks with confidence below this go to the general agent
+    route_floor: float = Field(DEFAULT_ROUTE_FLOOR, ge=0.0, le=1.0)
 
 
 class ScoreRequest(BaseModel):
@@ -87,7 +97,14 @@ def get_agent():
 
 @app.get("/api/defaults", tags=["chat"])
 async def defaults():
-    return {"instructions": DEFAULT_INSTRUCTIONS, "threshold": DEFAULT_THRESHOLD, "mock_llm": MOCK_LLM}
+    return {
+        "instructions": DEFAULT_INSTRUCTIONS,
+        "threshold": DEFAULT_THRESHOLD,
+        "route_floor": DEFAULT_ROUTE_FLOOR,
+        "teams": {key: t["label"] for key, t in TEAMS.items()},
+        "tiers": {key: t["label"] for key, t in TIERS.items()},
+        "mock_llm": MOCK_LLM,
+    }
 
 
 @app.get("/api/health", tags=["chat"])
@@ -116,21 +133,37 @@ async def chat(req: ChatRequest):
     if not text:
         raise HTTPException(400, detail="Message Empty")
 
-    # per-request gate settings in, gate results out (DeciderGate reads and fills this)
-    gate = {"threshold": req.threshold, "instructions": (req.instructions or "").strip()}
+    instructions = (req.instructions or "").strip()
 
+    # One decider request answers the PII questions and both routing questions.
     t0 = time.perf_counter()
     try:
+        verdict = await decider.pii_score(text, instructions or DEFAULT_INSTRUCTIONS,
+                                          extra_questions=ROUTE_QUESTIONS)
+    except DeciderError as e:
+        raise HTTPException(502, str(e))
+    gate_ms = (time.perf_counter() - t0) * 1000
+    route = choose_route(verdict.pop("extra"), req.route_floor)
+    log.info("route team=%s conf=%.2f fallback=%s tier=%s",
+             route["team"], route["confidence"], route["fallback"], route["tier"])
+
+    # per-request gate settings in, gate results out (DeciderGate reads and fills this);
+    # the hook still makes the block decision, from the verdict we already have
+    gate = {"threshold": req.threshold, "instructions": instructions,
+            "precomputed": verdict, "gate_ms": gate_ms}
+
+    try:
         async with agent_lock:
-            response = await get_agent().invoke_async(text, invocation_state={"decider": gate})
+            assistant = get_agent()
+            # route: one agent, so history is shared; only the prompt and model change per turn
+            assistant.system_prompt = system_prompt_for(route["team"])
+            assistant.model = get_model(route["model_id"])
+            t1 = time.perf_counter()
+            response = await assistant.invoke_async(text, invocation_state={"decider": gate, "route": route})
+            llm_ms = (time.perf_counter() - t1) * 1000
     except Exception as e:
         log.exception("agent invocation failed")
         raise HTTPException(502, f"Could not reach the Bedrock model: {type(e).__name__}: {e}")
-    total_ms = (time.perf_counter() - t0) * 1000
-
-    if "error" in gate:
-        # the hook failed closed; show the cause rather than a generic block
-        raise HTTPException(502, gate["error"])
 
     blocked = gate["blocked"]
     return {
@@ -142,7 +175,8 @@ async def chat(req: ChatRequest):
         "gate_ms": gate["gate_ms"],
         "blocked": blocked,
         "reply": str(response).strip(),
-        "llm_ms": None if blocked or MOCK_LLM else total_ms - gate["gate_ms"],
+        "llm_ms": None if blocked or MOCK_LLM else llm_ms,
+        "route": route,
     }
 
 
