@@ -65,7 +65,6 @@ class DeciderError(Exception):
 class DeciderClient:
     def __init__(self, base_url: str = DECIDER_URL):
         self.base_url = base_url
-        # the first call after the decider starts can be slow while it warms up
         self.http = httpx.AsyncClient(base_url=base_url, timeout=60.0)
 
     async def pii_score(self, text: str, instructions: str = DEFAULT_INSTRUCTIONS,

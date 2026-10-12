@@ -87,8 +87,6 @@ forward pass over the message across all of them.
 
 - **Per message:** the PII score as a gauge with the threshold marked, the verdict, a per-type
   breakdown (opens automatically when a message is blocked), and decider / LLM latency.
-- **Live PII score** above the input while you type. It calls `/api/score`, which never
-  touches the LLM.
 - **Score history** bar chart. Drag the threshold slider to see which past messages a
   stricter or looser gate would have blocked.
 - **Editable decider question.** Change what counts as sensitive without touching code.
@@ -98,7 +96,6 @@ forward pass over the message across all of them.
 | Method | Path | |
 |---|---|---|
 | POST | `/api/chat` | `{message, threshold, instructions?, route_floor?}` → score, categories, route, blocked, reply, timings |
-| POST | `/api/score` | `{message, instructions?}` → score and categories only |
 | POST | `/api/reset` | clears the agent's conversation history |
 | GET | `/api/defaults` | default question and threshold, mock mode flag |
 | GET | `/api/health` | decider status (proxied from its `/health`) |

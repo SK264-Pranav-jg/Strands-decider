@@ -51,11 +51,6 @@ class ChatRequest(BaseModel):
     route_floor: float = Field(DEFAULT_ROUTE_FLOOR, ge=0.0, le=1.0)
 
 
-class ScoreRequest(BaseModel):
-    message: str
-    instructions: str | None = None
-
-
 decider: DeciderClient
 agent = None
 agent_lock = asyncio.Lock()  # a Strands Agent rejects concurrent invocations
@@ -73,6 +68,7 @@ app = FastAPI(title="PII gate demo", lifespan=lifespan)
 # lets the page work when opened from an editor's Live Server instead of from "/"
 app.add_middleware(
     CORSMiddleware,
+    allow_origins=["*"],
     allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?|null",
     allow_methods=["*"],
     allow_headers=["*"],
@@ -87,7 +83,6 @@ async def index():
 def get_agent():
     global agent
     if agent is None:
-        # the gate is a hook, so every way of invoking the agent goes through it
         hooks = [DeciderGate(decider)]
         if MOCK_LLM:
             hooks.append(MockLLM())  # after the gate: only answers what it let through
@@ -113,18 +108,6 @@ async def health():
         return {"decider": "ok", **await decider.health(), "mock_llm": MOCK_LLM}
     except httpx.HTTPError:
         return {"decider": "down", "url": decider.base_url, "mock_llm": MOCK_LLM}
-
-
-@app.post("/api/score", tags=["chat"])
-async def score(req: ScoreRequest):
-    """Score only, never touches the agent. Used for the live meter while typing."""
-    text = req.message.strip()
-    if not text:
-        raise HTTPException(400, detail="Message Empty")
-    try:
-        return await decider.pii_score(text, (req.instructions or "").strip() or DEFAULT_INSTRUCTIONS)
-    except DeciderError as e:
-        raise HTTPException(502, str(e))
 
 
 @app.post("/api/chat", tags=["chat"])

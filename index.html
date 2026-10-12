@@ -302,35 +302,6 @@
             padding: 10px 28px 22px;
         }
 
-        .live {
-            display: grid;
-            grid-template-columns: auto minmax(0, 1fr) auto;
-            align-items: center;
-            gap: 10px;
-            font-size: 12px;
-            color: var(--muted);
-            margin-bottom: 8px;
-            max-width: 720px;
-        }
-
-        .live[hidden] {
-            display: none;
-        }
-
-        .live .gauge {
-            height: 6px;
-        }
-
-        .live .state {
-            min-width: 150px;
-            text-align: right;
-        }
-
-        .live .state.hot {
-            color: var(--block);
-            font-weight: 600;
-        }
-
         form {
             display: flex;
             gap: 10px;
@@ -465,13 +436,6 @@
         input[type=range] {
             width: 100%;
             accent-color: var(--ink);
-        }
-
-        label.toggle {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-            font-size: 13px;
         }
 
         #instr {
@@ -705,15 +669,8 @@
                 <p class="empty" id="empty">Send a message, or pick one of the examples on the right to see the gate
                     decide.</p>
             </div>
+
             <div class="composer">
-                <div class="live" id="live" hidden>
-                    <span>Live PII score</span>
-                    <div class="gauge" id="liveGauge">
-                        <div class="fill" style="width:0%"></div>
-                        <div class="tick"></div>
-                    </div>
-                    <span class="state num" id="liveState">start typing</span>
-                </div>
                 <form id="form">
                     <textarea id="msg" placeholder="Type a message" aria-label="Message" rows="1"></textarea>
                     <button id="send" type="submit">Send</button>
@@ -734,8 +691,6 @@
                 </div>
                 <p class="hint">Messages scoring at or above this are blocked. Lower it to be stricter.</p>
                 <input type="range" id="thr" min="0.05" max="0.95" step="0.05" value="0.5" aria-label="Block threshold">
-                <label class="toggle" style="margin-top:10px"><input type="checkbox" id="liveToggle" checked> Score
-                    live while typing (never calls the LLM)</label>
             </section>
 
             <section>
@@ -750,7 +705,8 @@
 
             <section>
                 <h2>Routing</h2>
-                <p class="hint">Where the messages that passed the gate went. Simple requests go to the cheaper model.</p>
+                <p class="hint">Where the messages that passed the gate went. Simple requests go to the cheaper model.
+                </p>
                 <div class="tiles">
                     <div class="tile">
                         <div class="n num" id="nRouted">0</div>
@@ -887,7 +843,6 @@
         // ---- threshold ----
         thr.addEventListener("input", () => {
             thrv.textContent = (+thr.value).toFixed(2);
-            renderLive();
             renderHistory();
         });
 
@@ -897,7 +852,7 @@
             items.forEach((text) => {
                 const b = document.createElement("button");
                 b.type = "button"; b.className = "quiet"; b.textContent = text;
-                b.addEventListener("click", () => { msg.value = text; msg.focus(); scheduleLive(); });
+                b.addEventListener("click", () => { msg.value = text; msg.focus(); });
                 $("examples").appendChild(b);
             });
         });
@@ -915,7 +870,7 @@
             renderHistory();
             if (d.mock_llm) $("lede").textContent += " (Mock LLM mode: Bedrock is not being called.)";
         });
-        $("resetInstr").addEventListener("click", () => { instr.value = defaultInstructions; scheduleLive(); });
+        $("resetInstr").addEventListener("click", () => { instr.value = defaultInstructions; });
 
         async function checkHealth() {
             const box = $("status");
@@ -942,59 +897,6 @@
         checkHealth();
         setInterval(checkHealth, 15000);
 
-        // ---- live score while typing ----
-        let liveScore = null, liveTimer = null, liveCtl = null;
-        const liveBox = $("live"), liveState = $("liveState"), liveGauge = $("liveGauge");
-
-        function renderLive() {
-            const t = +thr.value;
-            liveGauge.querySelector(".tick").style.left = pct(t);
-            if (liveScore == null) {
-                liveGauge.querySelector(".fill").style.width = "0%";
-                liveGauge.classList.remove("hot");
-                liveState.classList.remove("hot");
-                return;
-            }
-            const hot = liveScore >= t;
-            liveGauge.querySelector(".fill").style.width = pct(liveScore);
-            liveGauge.classList.toggle("hot", hot);
-            liveState.classList.toggle("hot", hot);
-            liveState.textContent = `${liveScore.toFixed(3)} ${hot ? "would block" : "would pass"}`;
-        }
-
-        function scheduleLive() {
-            if (!$("liveToggle").checked) return;
-            clearTimeout(liveTimer);
-            liveCtl?.abort();
-            const text = msg.value.trim();
-            if (!text) { liveScore = null; liveState.textContent = "start typing"; renderLive(); return; }
-            liveState.textContent = "scoring...";
-            liveTimer = setTimeout(async () => {
-                liveCtl = new AbortController();
-                try {
-                    const res = await fetch(API + "/api/score", {
-                        method: "POST", signal: liveCtl.signal,
-                        headers: { "content-type": "application/json" },
-                        body: JSON.stringify({ message: text, instructions: instr.value })
-                    });
-                    const d = await res.json();
-                    if (!res.ok) throw new Error(errText(d, res));
-                    liveScore = d.score;
-                    renderLive();
-                } catch (err) {
-                    if (err.name !== "AbortError") { liveScore = null; renderLive(); liveState.textContent = "decider error"; }
-                }
-            }, 450);
-        }
-
-        msg.addEventListener("input", scheduleLive);
-        instr.addEventListener("input", scheduleLive);
-        $("liveToggle").addEventListener("change", (e) => {
-            liveBox.hidden = !e.target.checked;
-            if (e.target.checked) scheduleLive(); else { liveCtl?.abort(); clearTimeout(liveTimer); }
-        });
-        liveBox.hidden = !$("liveToggle").checked;
-        renderLive();
 
         // ---- conversation ----
         function addTurn(userText) {
@@ -1104,8 +1006,6 @@
             const text = msg.value.trim();
             if (!text) return;
             msg.value = ""; send.disabled = true;
-            clearTimeout(liveTimer); liveCtl?.abort();
-            liveScore = null; liveState.textContent = "start typing"; renderLive();
             const t = addTurn(text);
             try {
                 const res = await fetch(API + "/api/chat", {
