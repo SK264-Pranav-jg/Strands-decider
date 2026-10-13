@@ -42,6 +42,13 @@ Response length:
 - More complex questions: use short paragraphs or bullets, but remain concise.
 - Only provide detailed, long-form answers when the user explicitly requests them.
 
-Above all, prioritize natural conversation, clarity, usefulness, and brevity. """ 
+Above all, prioritize natural conversation, clarity, usefulness, and brevity. 
+
+MOST IMPORTANTLY 
+ - Respond in simple text and avoid markdown symbols like ** and em-dashes 
+""" 
+
+
+
 
     return prompt 

@@ -1,7 +1,5 @@
 import asyncio
 import logging
-import os
-import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -18,30 +16,22 @@ from pydantic import BaseModel, Field
 STATIC = Path(__file__).resolve().parent
 load_dotenv(STATIC / ".env")
 
-from agent.agent import create_agent, get_model
+from agent.agent import create_agent
 from agent.decider_gate import (
     DEFAULT_INSTRUCTIONS,
     DEFAULT_THRESHOLD,
     DeciderClient,
     DeciderError,
     DeciderGate,
-    MockLLM,
 )
 from agent.router import (
     DEFAULT_ROUTE_FLOOR,
-    ROUTE_QUESTIONS,
     TEAMS,
     TIERS,
-    choose_route,
-    system_prompt_for,
 )
 
 log = logging.getLogger("pii-gate")
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
-
-# MOCK_LLM=1 runs the whole demo without calling Bedrock
-MOCK_LLM = os.getenv("MOCK_LLM", "").lower() in ("1", "true", "yes")
-
 
 class ChatRequest(BaseModel):
     message: str
@@ -68,7 +58,6 @@ app = FastAPI(title="PII gate demo", lifespan=lifespan)
 # lets the page work when opened from an editor's Live Server instead of from "/"
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
     allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?|null",
     allow_methods=["*"],
     allow_headers=["*"],
@@ -83,10 +72,7 @@ async def index():
 def get_agent():
     global agent
     if agent is None:
-        hooks = [DeciderGate(decider)]
-        if MOCK_LLM:
-            hooks.append(MockLLM())  # after the gate: only answers what it let through
-        agent = create_agent(hooks=hooks)
+        agent = create_agent(hooks=[DeciderGate(decider)])
     return agent
 
 
@@ -98,16 +84,15 @@ async def defaults():
         "route_floor": DEFAULT_ROUTE_FLOOR,
         "teams": {key: t["label"] for key, t in TEAMS.items()},
         "tiers": {key: t["label"] for key, t in TIERS.items()},
-        "mock_llm": MOCK_LLM,
     }
 
 
 @app.get("/api/health", tags=["chat"])
 async def health():
     try:
-        return {"decider": "ok", **await decider.health(), "mock_llm": MOCK_LLM}
-    except httpx.HTTPError:
-        return {"decider": "down", "url": decider.base_url, "mock_llm": MOCK_LLM}
+        return {"decider": "ok", **await decider.health()}
+    except (httpx.HTTPError, ValueError):
+        return {"decider": "down", "url": decider.base_url}
 
 
 @app.post("/api/chat", tags=["chat"])
@@ -116,39 +101,24 @@ async def chat(req: ChatRequest):
     if not text:
         raise HTTPException(400, detail="Message Empty")
 
-    instructions = (req.instructions or "").strip()
-
-    # One decider request answers the PII questions and both routing questions.
-    t0 = time.perf_counter()
-    try:
-        verdict = await decider.pii_score(text, instructions or DEFAULT_INSTRUCTIONS,
-                                          extra_questions=ROUTE_QUESTIONS)
-    except DeciderError as e:
-        raise HTTPException(502, str(e))
-    gate_ms = (time.perf_counter() - t0) * 1000
-    route = choose_route(verdict.pop("extra"), req.route_floor)
-    log.info("route team=%s conf=%.2f fallback=%s tier=%s",
-             route["team"], route["confidence"], route["fallback"], route["tier"])
-
-    # per-request gate settings in, gate results out (DeciderGate reads and fills this);
-    # the hook still makes the block decision, from the verdict we already have
-    gate = {"threshold": req.threshold, "instructions": instructions,
-            "precomputed": verdict, "gate_ms": gate_ms}
+    gate = {
+        "threshold": req.threshold,
+        "instructions": (req.instructions or "").strip(),
+        # value that is used to route the models 
+        "route_floor": req.route_floor,
+    }
 
     try:
         async with agent_lock:
             assistant = get_agent()
-            # route: one agent, so history is shared; only the prompt and model change per turn
-            assistant.system_prompt = system_prompt_for(route["team"])
-            assistant.model = get_model(route["model_id"])
-            t1 = time.perf_counter()
-            response = await assistant.invoke_async(text, invocation_state={"decider": gate, "route": route})
-            llm_ms = (time.perf_counter() - t1) * 1000
+            response = await assistant.invoke_async(text, invocation_state={"decider": gate})
+    except DeciderError as e:
+        raise HTTPException(502, str(e))
     except Exception as e:
         log.exception("agent invocation failed")
         raise HTTPException(502, f"Could not reach the Bedrock model: {type(e).__name__}: {e}")
 
-    blocked = gate["blocked"]
+    # DeciderGate fills these in on every turn it doesn't raise for
     return {
         "score": gate["score"],
         "categories": gate["categories"],
@@ -156,10 +126,10 @@ async def chat(req: ChatRequest):
         "tokens": gate["tokens"],
         "threshold": gate["threshold"],
         "gate_ms": gate["gate_ms"],
-        "blocked": blocked,
+        "blocked": gate["blocked"],
         "reply": str(response).strip(),
-        "llm_ms": None if blocked or MOCK_LLM else llm_ms,
-        "route": route,
+        "llm_ms": gate.get("llm_ms"),
+        "route": gate.get("route"),
     }
 
 

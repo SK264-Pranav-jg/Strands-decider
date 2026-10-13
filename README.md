@@ -19,8 +19,10 @@ message ──► Strands Agent
 The gate is a Strands hook (`DeciderGate` in `agent/decider_gate.py`) on
 `BeforeInvocationEvent`, so it runs inside the agent before every model call. When the
 score reaches the threshold it sets `event.cancel`: the user gets the block message,
-Bedrock is never called, and the blocked message is not added to the agent's history.
-If the decider is unreachable the hook fails closed. To add the gate to another Strands
+Bedrock is never called, and neither the blocked message nor the block reply is kept in the
+agent's history. If the decider is unreachable or returns a bad response, the hook raises
+`DeciderError` before the message reaches the model (fail closed) and `/api/chat` returns 502.
+If Bedrock isn't configured, the model call fails and `/api/chat` returns 502 with the error. To add the gate to another Strands
 agent, pass `hooks=[DeciderGate(DeciderClient())]` to `Agent(...)`.
 
 The demo sends the UI's threshold and decider question to the hook through
@@ -38,9 +40,9 @@ The same decider request also asks two `choice` questions (`agent/router.py`):
 A team pick whose confidence is below the **route confidence floor** (default 0.3,
 adjustable in the UI) falls back to the general agent. There is one agent, and only its
 system prompt and model change per turn, so the conversation history is shared across
-specialists. The endpoint passes the PII verdict from the batched call to the hook as
-`invocation_state["decider"]["precomputed"]`, so the decider is asked once per message;
-used on its own, the hook calls the decider itself.
+specialists. The hook (`DeciderGate`) manages the complete lifecycle: it asks the decider
+once per turn for both PII safety and routing, blocks unsafe messages before Bedrock is invoked,
+and dynamically reconfigures the agent for the chosen specialist and model tier.
 
 ## The PII questions
 
@@ -70,8 +72,6 @@ forward pass over the message across all of them.
    uv run main.py
    ```
 
-   To demo without Bedrock, run `MOCK_LLM=1 uv run main.py`.
-
 ## Configuration (env vars)
 
 | Var | Default |
@@ -81,7 +81,6 @@ forward pass over the message across all of them.
 | `BEDROCK_MODEL_ID` | `global.anthropic.claude-haiku-4-5-20251001-v1:0` (before the first route) |
 | `SIMPLE_MODEL_ID` | `global.anthropic.claude-haiku-4-5-20251001-v1:0` |
 | `COMPLEX_MODEL_ID` | `global.anthropic.claude-sonnet-5-5` |
-| `MOCK_LLM` | off |
 
 ## What the UI shows
 
@@ -97,5 +96,5 @@ forward pass over the message across all of them.
 |---|---|---|
 | POST | `/api/chat` | `{message, threshold, instructions?, route_floor?}` → score, categories, route, blocked, reply, timings |
 | POST | `/api/reset` | clears the agent's conversation history |
-| GET | `/api/defaults` | default question and threshold, mock mode flag |
+| GET | `/api/defaults` | default question, threshold, route floor, team and tier labels |
 | GET | `/api/health` | decider status (proxied from its `/health`) |

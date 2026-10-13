@@ -11,7 +11,7 @@ strands-decider serve StrandsAgents/strands-decider-2B-hobson-v19 --port 9000
 
 ## for choice and score 
 
-curl -s localhost:8000/v1/systemone -H 'content-type: application/json' -d '{
+curl -s localhost:9000/v1/systemone -H 'content-type: application/json' -d '{
   "state": "Help! My payouts have been failing for 3 days.",
   "model": "hobson-latest",
   "questions": {

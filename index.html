@@ -868,7 +868,6 @@
             TEAMS = d.teams; TIERS = d.tiers;
             floor.value = d.route_floor; $("floorv").textContent = (+d.route_floor).toFixed(2);
             renderHistory();
-            if (d.mock_llm) $("lede").textContent += " (Mock LLM mode: Bedrock is not being called.)";
         });
         $("resetInstr").addEventListener("click", () => { instr.value = defaultInstructions; });
 
