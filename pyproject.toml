@@ -1,7 +1,7 @@
 [project]
-name = "demo"
+name = "acme-support-gate"
 version = "0.1.0"
-description = "Add your description here"
+description = "Acme Electronics support orchestrator behind a strands-decider admission gate"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
@@ -11,3 +11,11 @@ dependencies = [
     "strands-agents>=1.58.0",
     "uvicorn>=0.54.0",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

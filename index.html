@@ -4,7 +4,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>PII gate demo</title>
+    <title>Electronics support · decider scope gate</title>
     <link rel="icon" href="data:,">
     <style>
         :root {
@@ -14,8 +14,10 @@
             --muted: #5d6c7b;
             --line: #c9d1d9;
             --track: #dde3e9;
-            --pass: #0f7f82;
-            --block: #b5294e;
+            /* in scope / out of scope, validated together (dataviz validate_palette.js, light) */
+            --pass: #00897b;
+            --out: #a86500;
+            --error: #b5294e;
             --focus: #2a5bd7;
         }
 
@@ -47,7 +49,7 @@
 
         .app {
             display: grid;
-            grid-template-columns: minmax(0, 1fr) 360px;
+            grid-template-columns: minmax(0, 1fr) 380px;
             height: 100%;
         }
 
@@ -88,7 +90,7 @@
         header p {
             margin: 0;
             color: var(--muted);
-            max-width: 66ch;
+            max-width: 70ch;
         }
 
         .flow {
@@ -140,14 +142,14 @@
             border-left: 3px solid var(--ink);
         }
 
-        /* decider score card attached to each message */
+        /* gate card attached to each message */
         .check {
             margin: 8px 0 0 14px;
             padding: 12px 14px;
             border: 1px solid var(--line);
             border-radius: 6px;
             background: var(--panel);
-            max-width: 480px;
+            max-width: 520px;
         }
 
         .check.pending {
@@ -155,41 +157,35 @@
             font-size: 13px;
         }
 
-        .scorehead {
+        .verdict {
             display: flex;
             align-items: baseline;
             justify-content: space-between;
             gap: 12px;
-            margin-bottom: 8px;
+            margin-bottom: 10px;
         }
 
-        .scorehead .big {
-            font-size: 26px;
-            font-weight: 600;
-            line-height: 1;
-        }
-
-        .scorehead .cap {
-            font-size: 12px;
-            color: var(--muted);
-        }
-
-        .verdict {
+        .verdict .what {
             font-weight: 650;
             font-size: 14px;
         }
 
-        .turn.blocked .verdict {
-            color: var(--block);
+        .turn.in_scope .verdict .what {
+            color: var(--pass);
         }
 
-        .turn.passed .verdict {
-            color: var(--pass);
+        .turn.out_of_scope .verdict .what {
+            color: var(--out);
+        }
+
+        .cap {
+            font-size: 12px;
+            color: var(--muted);
         }
 
         .gauge {
             position: relative;
-            height: 10px;
+            height: 8px;
             background: var(--track);
             border-radius: 4px;
         }
@@ -198,11 +194,11 @@
             position: absolute;
             inset: 0 auto 0 0;
             border-radius: 4px;
-            background: var(--pass);
+            background: #9aa8b6;
         }
 
-        .gauge.hot .fill {
-            background: var(--block);
+        .gauge.pass .fill {
+            background: var(--pass);
         }
 
         .gauge .tick {
@@ -214,60 +210,32 @@
             background: var(--ink);
         }
 
-        .scale {
-            display: flex;
-            justify-content: space-between;
-            font-size: 11px;
-            color: var(--muted);
-            margin-top: 3px;
-        }
-
-        details.breakdown {
-            margin-top: 10px;
-            font-size: 13px;
-        }
-
-        details.breakdown summary {
-            cursor: pointer;
-            color: var(--muted);
-        }
-
-        .cats {
+        .scores {
             display: grid;
             grid-template-columns: 110px 1fr 44px;
             align-items: center;
-            gap: 5px 10px;
-            margin-top: 8px;
+            gap: 6px 10px;
+            font-size: 13px;
         }
 
-        .cats .lab {
+        .scores .lab {
             color: var(--muted);
         }
 
-        .cats .lab.hit {
+        .scores .lab.on {
             color: var(--ink);
             font-weight: 600;
         }
 
-        .cats .lab.hit::before {
-            content: "\25CF ";
-            color: var(--block);
-        }
-
-        .cats .gauge {
-            height: 6px;
-        }
-
-        .cats .gauge .tick {
-            top: -3px;
-            bottom: -3px;
-            width: 1px;
-            margin-left: 0;
-            opacity: .6;
-        }
-
-        .cats .v {
+        .scores .v {
             text-align: right;
+        }
+
+        .scores .rule {
+            grid-column: 2 / -1;
+            font-size: 11px;
+            color: var(--muted);
+            margin-top: -4px;
         }
 
         .facts {
@@ -279,6 +247,77 @@
             gap: 2px 14px;
         }
 
+        /* orchestrator trace */
+        .trace {
+            margin: 8px 0 0 14px;
+            padding: 10px 14px;
+            border: 1px solid var(--line);
+            border-left: 3px solid var(--pass);
+            border-radius: 6px;
+            background: var(--panel);
+            max-width: 620px;
+            font-size: 13px;
+        }
+
+        .trace .thead {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            font-weight: 600;
+        }
+
+        .trace ol {
+            list-style: none;
+            margin: 6px 0 0;
+            padding: 0;
+            display: grid;
+            gap: 8px;
+        }
+
+        .trace .step {
+            padding-left: 14px;
+            border-left: 1px solid var(--line);
+        }
+
+        .trace .who {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .trace .who b {
+            font-weight: 600;
+        }
+
+        .trace .req {
+            color: var(--muted);
+            font-style: italic;
+            overflow-wrap: anywhere;
+        }
+
+        .trace ul {
+            list-style: none;
+            margin: 4px 0 0;
+            padding: 0;
+            font-size: 12px;
+        }
+
+        .trace li.call {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            overflow-wrap: anywhere;
+        }
+
+        .trace li.call.err .name {
+            color: var(--error);
+        }
+
+        .trace .none {
+            color: var(--muted);
+            font-size: 12px;
+        }
+
         .reply {
             margin-top: 10px;
         }
@@ -287,13 +326,19 @@
             border-left: 3px solid var(--pass);
         }
 
-        .blockednote .msg {
-            border-left: 3px solid var(--block);
+        .turn.out_of_scope .reply .msg,
+        .turn.out_of_scope .trace {
+            border-left-color: var(--out);
+        }
+
+        .badge {
+            font-size: 12px;
             color: var(--muted);
+            margin: 0 0 4px 2px;
         }
 
         .err {
-            color: var(--block);
+            color: var(--error);
         }
 
         /* composer */
@@ -308,7 +353,7 @@
         }
 
         textarea,
-        input[type=text] {
+        select {
             font: inherit;
             color: inherit;
         }
@@ -351,15 +396,7 @@
             border-color: var(--ink);
         }
 
-        button.link {
-            background: none;
-            border: 0;
-            padding: 0;
-            color: var(--focus);
-            font-size: 12px;
-        }
-
-        /* controls */
+        /* side panel */
         aside {
             border-left: 1px solid var(--line);
             background: var(--panel);
@@ -416,21 +453,33 @@
         }
 
         .status.down .dot {
-            background: var(--block);
+            background: var(--error);
         }
 
-        .status dl {
+        .status dl,
+        dl.agents {
             display: grid;
             grid-template-columns: auto 1fr;
-            gap: 0 10px;
+            gap: 2px 10px;
             margin: 6px 0 0;
             font-size: 12px;
             color: var(--muted);
         }
 
-        .status dd {
+        .status dd,
+        dl.agents dd {
             margin: 0;
             overflow-wrap: anywhere;
+        }
+
+        dl.agents dt {
+            color: var(--ink);
+            font-weight: 600;
+        }
+
+        #customer {
+            font-weight: 600;
+            margin: 0 0 4px;
         }
 
         input[type=range] {
@@ -438,21 +487,21 @@
             accent-color: var(--ink);
         }
 
-        #instr {
-            width: 100%;
-            height: 120px;
-            padding: 8px 10px;
-            border: 1px solid var(--line);
-            border-radius: 6px;
-            background: #fff;
-            font-size: 13px;
+        .slider {
+            margin-bottom: 14px;
+        }
+
+        .slider .q {
+            font-size: 12px;
+            color: var(--muted);
+            margin: 2px 0 4px;
         }
 
         .tiles {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 8px;
-            margin-bottom: 10px;
+            margin-bottom: 8px;
         }
 
         .tile {
@@ -474,12 +523,13 @@
 
         .chartwrap {
             position: relative;
+            margin-top: 6px;
         }
 
         #chart {
             display: block;
             width: 100%;
-            height: 150px;
+            height: 170px;
         }
 
         /* only the wide .hit rects take the pointer; bars, grid and labels sit on top */
@@ -487,8 +537,8 @@
             pointer-events: none;
         }
 
-        #chart .hit:hover+.bar,
-        #chart .bar.active {
+        #chart .hit:hover+.mark,
+        #chart .mark.active {
             stroke: var(--ink);
             stroke-width: 1.5;
         }
@@ -501,9 +551,9 @@
             font-size: 12px;
             padding: 6px 8px;
             border-radius: 4px;
-            max-width: 230px;
-            transform: translate(-50%, -100%);
-            white-space: normal;
+            max-width: 240px;
+            transform: translate(-50%, calc(-100% - 10px));
+            white-space: pre-wrap;
         }
 
         .tip[hidden] {
@@ -512,7 +562,8 @@
 
         .legend {
             display: flex;
-            gap: 14px;
+            flex-wrap: wrap;
+            gap: 4px 14px;
             font-size: 12px;
             color: var(--muted);
             margin-top: 4px;
@@ -532,9 +583,17 @@
             gap: 6px;
         }
 
-        .tools {
-            display: flex;
-            gap: 8px;
+        .examples h3 {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--muted);
+            margin: 8px 0 0;
+        }
+
+        .examples .note {
+            font-size: 12px;
+            color: var(--muted);
+            margin: 0;
         }
 
         .sr {
@@ -545,104 +604,8 @@
             clip: rect(0 0 0 0);
         }
 
-        /* routing (choice answers) */
-        .route {
-            margin-top: 12px;
-            padding-top: 10px;
-            border-top: 1px solid var(--line);
-            font-size: 13px;
-        }
-
-        .route.unused {
-            opacity: .6;
-        }
-
-        .route .rhead {
-            display: flex;
-            justify-content: space-between;
-            align-items: baseline;
-            gap: 8px;
-        }
-
-        .route .dest {
-            font-weight: 650;
-        }
-
-        .route .note {
-            color: var(--muted);
-            font-size: 12px;
-            margin-top: 2px;
-        }
-
-        .opts {
-            display: grid;
-            grid-template-columns: 110px 1fr 44px;
-            align-items: center;
-            gap: 5px 10px;
-            margin-top: 6px;
-            font-size: 13px;
-        }
-
-        .opts .sub {
-            grid-column: 1 / -1;
-            font-size: 11px;
-            color: var(--muted);
-            letter-spacing: .04em;
-            text-transform: uppercase;
-            margin-top: 6px;
-        }
-
-        .opts .lab {
-            color: var(--muted);
-        }
-
-        .opts .lab.on {
-            color: var(--ink);
-            font-weight: 600;
-        }
-
-        .opts .v {
-            text-align: right;
-        }
-
-        .bar {
-            position: relative;
-            height: 6px;
-            background: var(--track);
-            border-radius: 4px;
-        }
-
-        .bar .fill {
-            position: absolute;
-            inset: 0 auto 0 0;
-            border-radius: 4px;
-            background: #9aa8b6;
-        }
-
-        .bar.on .fill {
-            background: var(--ink);
-        }
-
-        .badge {
-            font-size: 12px;
-            color: var(--muted);
-            margin: 0 0 4px 2px;
-        }
-
-        .examples h3 {
-            font-size: 12px;
-            font-weight: 600;
-            color: var(--muted);
-            margin: 8px 0 0;
-        }
-
         @media (prefers-reduced-motion: no-preference) {
-            .bar .fill {
-                transition: width .35s ease-out;
-            }
-        }
 
-        @media (prefers-reduced-motion: no-preference) {
             .gauge .fill {
                 transition: width .35s ease-out;
             }
@@ -654,25 +617,27 @@
     <div class="app">
         <main>
             <header>
-                <h1>PII Decider</h1>
-                <p id="lede">Every message goes to a local strands-decider model first. In one call it checks for
-                    personal information, which is blocked and never reaches Bedrock, and routes everything else to a
-                    specialist agent and the right model tier.</p>
+                <h1>Acme Electronics support</h1>
+                <p>A multi-agent support orchestrator, with a local strands-decider model in front of it. The decider
+                    reads every message first and classifies it as in scope or out of scope. Only in-scope messages
+                    reach the orchestrator; a small out-of-scope agent answers the rest and steers the customer back to
+                    store questions.</p>
                 <div class="flow" aria-hidden="true">
                     <span class="step">Your message</span>&rarr;
-                    <span class="step">strands-decider: PII (noul) + route (choice), one call</span>&rarr;
-                    <span class="step">PII? block</span>&rarr;
-                    <span class="step">specialist agent on Haiku or Sonnet</span>
+                    <span class="step">strands-decider: in scope?</span>&rarr;
+                    <span class="step">yes: orchestrator &rarr; specialists &rarr; tools</span>
+                    <span>or</span>
+                    <span class="step">no: out-of-scope agent</span>
                 </div>
             </header>
             <div id="log" aria-live="polite">
-                <p class="empty" id="empty">Send a message, or pick one of the examples on the right to see the gate
-                    decide.</p>
+                <p class="empty" id="empty">Ask about an order, a return or a product, or pick one of the examples on
+                    the right.</p>
             </div>
 
             <div class="composer">
                 <form id="form">
-                    <textarea id="msg" placeholder="Type a message" aria-label="Message" rows="1"></textarea>
+                    <textarea id="msg" placeholder="Message Acme support" aria-label="Message" rows="1"></textarea>
                     <button id="send" type="submit">Send</button>
                 </form>
             </div>
@@ -686,76 +651,67 @@
             </section>
 
             <section>
-                <div class="row">
-                    <h2>Block threshold</h2><span class="num" id="thrv">0.50</span>
-                </div>
-                <p class="hint">Messages scoring at or above this are blocked. Lower it to be stricter.</p>
-                <input type="range" id="thr" min="0.05" max="0.95" step="0.05" value="0.5" aria-label="Block threshold">
+                <p id="customer">&ndash;</p>
             </section>
 
             <section>
-                <div class="row">
-                    <h2>Route confidence floor</h2><span class="num" id="floorv">0.30</span>
+                <div class="slider">
+                    <div class="row">
+                        <h2>In-scope threshold</h2><span class="num" id="scopev">0.50</span>
+                    </div>
+                    <p class="hint">A message goes to the orchestrator when its in-scope score, or mid-conversation its
+                        follow-up score, is at or above this. Everything else goes to the out-of-scope agent.</p>
+                    <div class="q" id="scopeq"></div>
+                    <div class="q" id="followq"></div>
+                    <input type="range" id="scope" min="0.05" max="0.95" step="0.05" value="0.5"
+                        aria-label="In-scope threshold">
                 </div>
-                <p class="hint">The decider picks a team with a confidence from 0 (a coin toss) to 1 (certain). Picks
-                    below this floor fall back to the general agent.</p>
-                <input type="range" id="floor" min="0" max="0.95" step="0.05" value="0.3"
-                    aria-label="Route confidence floor">
             </section>
 
             <section>
-                <h2>Routing</h2>
-                <p class="hint">Where the messages that passed the gate went. Simple requests go to the cheaper model.
-                </p>
-                <div class="tiles">
-                    <div class="tile">
-                        <div class="n num" id="nRouted">0</div>
-                        <div class="k">routed</div>
-                    </div>
-                    <div class="tile">
-                        <div class="n num" id="nCheap">0</div>
-                        <div class="k">on the cheaper model</div>
-                    </div>
-                    <div class="tile">
-                        <div class="n num" id="nFallback">0</div>
-                        <div class="k">low-confidence fallbacks</div>
-                    </div>
-                </div>
-                <div class="opts" id="routeStats"></div>
-            </section>
-
-            <section>
-                <h2>Score history</h2>
-                <p class="hint">PII score of every message sent. Shading uses the current threshold, so drag the slider
-                    to see what a stricter or looser gate would have blocked.</p>
+                <h2>Scope history</h2>
+                <p class="hint">Scope score of every message sent. Shading uses the current threshold, so drag the
+                    slider to see where a stricter or looser gate would have sent past messages.</p>
                 <div class="tiles">
                     <div class="tile">
                         <div class="n num" id="nSent">0</div>
                         <div class="k">sent</div>
                     </div>
                     <div class="tile">
-                        <div class="n num" id="nBlocked">0</div>
-                        <div class="k">blocked</div>
+                        <div class="n num" id="nIn">0</div>
+                        <div class="k">to the orchestrator</div>
                     </div>
                     <div class="tile">
-                        <div class="n num" id="nLat">&ndash;</div>
+                        <div class="n num" id="nOut">0</div>
+                        <div class="k">to the out-of-scope agent</div>
+                    </div>
+                    <div class="tile">
+                        <div class="n num" id="nDecMs">&ndash;</div>
                         <div class="k">median decider ms</div>
+                    </div>
+                    <div class="tile">
+                        <div class="n num" id="nInMs">&ndash;</div>
+                        <div class="k">median orchestrator LLM ms</div>
+                    </div>
+                    <div class="tile">
+                        <div class="n num" id="nOutMs">&ndash;</div>
+                        <div class="k">median out-of-scope LLM ms</div>
                     </div>
                 </div>
                 <div class="chartwrap">
-                    <svg id="chart" role="img" aria-label="Bar chart of PII score per message"></svg>
+                    <svg id="chart" role="img" aria-label="Bar chart of the scope score per message"></svg>
                     <div class="tip" id="tip" hidden></div>
                 </div>
-                <div class="legend"><span><i style="background:var(--pass)"></i>Below threshold</span><span><i
-                            style="background:var(--block)"></i>At or above</span></div>
+                <div class="legend"><span><i style="background:var(--pass)"></i>In scope: orchestrator</span><span><i
+                            style="background:var(--out)"></i>Out of scope: out-of-scope agent</span></div>
                 <table class="sr" id="histTable">
-                    <caption>PII score per message</caption>
+                    <caption>Scope score per message</caption>
                     <thead>
                         <tr>
                             <th>#</th>
                             <th>Message</th>
-                            <th>Score</th>
-                            <th>Verdict</th>
+                            <th>Scope</th>
+                            <th>Decision</th>
                         </tr>
                     </thead>
                     <tbody></tbody>
@@ -763,13 +719,9 @@
             </section>
 
             <section>
-                <div class="row">
-                    <h2>Question the decider answers</h2>
-                    <button class="link" id="resetInstr" type="button">Reset</button>
-                </div>
-                <p class="hint">Edit it and send again to change what counts as sensitive. Only this question decides
-                    the block; the category breakdown is extra context.</p>
-                <textarea id="instr" aria-label="Decider question"></textarea>
+                <h2>Agents</h2>
+                <p class="hint" id="models"></p>
+                <dl class="agents" id="agents"></dl>
             </section>
 
             <section>
@@ -777,44 +729,36 @@
                 <div class="examples" id="examples"></div>
             </section>
 
-            <section class="tools">
+            <section>
                 <button class="quiet" id="clear" type="button">Clear chat</button>
             </section>
         </aside>
     </div>
 
     <script>
-        const EXAMPLES = {
-            "PII gate": [
-                "My card number is 4111 1111 1111 1111",
-                "You can call me on 98765 43210",
-                "My daughter Priya lives at 12 Oak Street",
-                "I am Rahul Sharma and my PAN is ABCDE1234F",
-                "Please email support@company.com about this"
-            ],
-            "Routing": [
-                "I was charged twice for my subscription this month",
-                "The app crashes every time I open the settings page",
-                "Do you offer a discount for nonprofits?",
-                "Compare your Pro and Enterprise plans for a 40-person team that needs SSO and audit logs, and recommend one",
-                "Our webhook deliveries fail with 502s since the last deploy; walk me through how to debug it",
-                "Hi there!"
-            ]
-        };
-
         // Served by FastAPI the API is same-origin. Opened from an editor's Live Server
         // (ports 5500+) or as a file, the API calls have to go to the FastAPI app.
         const API = location.protocol === "file:" || /^55\d\d$/.test(location.port) ? "http://127.0.0.1:8000" : "";
 
         const $ = (id) => document.getElementById(id);
         const log = $("log"), msg = $("msg"), send = $("send");
-        const thr = $("thr"), thrv = $("thrv"), instr = $("instr");
-        let defaultInstructions = "";
-        const CATEGORY_CUTOFF = 0.5;  // matches agent/decider_gate.py
-        const history = [];  // {text, score, blocked, threshold, decider_ms, route}
-        let TEAMS = {}, TIERS = {};  // key -> label, from /api/defaults
+        const scope = $("scope");
+        const history = [];  // {text, scope, decision, threshold, decider_ms, llm_ms}
+
+        const VERDICT = {
+            in_scope: "✓ In scope: sent to the orchestrator",
+            out_of_scope: "→ Out of scope: answered by the out-of-scope agent",
+        };
+
+        // a new conversation per page load, so the server history always matches what's on screen
+        const sid = crypto.randomUUID();
 
         const pct = (x) => (Math.max(0, Math.min(1, x)) * 100) + "%";
+        const secs = (ms) => ms >= 1000 ? `${(ms / 1000).toFixed(1)} s` : `${Math.round(ms)} ms`;
+        const median = (xs) => {
+            const s = [...xs].sort((a, b) => a - b);
+            return s.length ? s[Math.floor(s.length / 2)] : null;
+        };
 
         function el(tag, cls, text) {
             const e = document.createElement(tag);
@@ -830,8 +774,11 @@
             return d || res.statusText || `HTTP ${res.status}`;
         }
 
-        function gauge(score, threshold, hot) {
-            const g = el("div", "gauge" + (hot ? " hot" : ""));
+        // the same rule as support/gate.py decide(); h.scope is max(in_scope, follow_up)
+        const decideNow = (h) => h.scope >= +scope.value ? "in_scope" : "out_of_scope";
+
+        function gauge(score, threshold, cls) {
+            const g = el("div", "gauge " + cls);
             const fill = el("div", "fill"); fill.style.width = "0%";
             const tick = el("div", "tick"); tick.style.left = pct(threshold);
             tick.title = `threshold ${threshold.toFixed(2)}`;
@@ -840,36 +787,44 @@
             return g;
         }
 
-        // ---- threshold ----
-        thr.addEventListener("input", () => {
-            thrv.textContent = (+thr.value).toFixed(2);
+        // ---- slider ----
+        scope.addEventListener("input", () => {
+            $("scopev").textContent = (+scope.value).toFixed(2);
             renderHistory();
         });
 
-        // ---- examples ----
-        Object.entries(EXAMPLES).forEach(([group, items]) => {
-            $("examples").appendChild(el("h3", "", group));
-            items.forEach((text) => {
-                const b = document.createElement("button");
-                b.type = "button"; b.className = "quiet"; b.textContent = text;
-                b.addEventListener("click", () => { msg.value = text; msg.focus(); });
-                $("examples").appendChild(b);
-            });
-        });
-
-        // ---- route confidence floor ----
-        const floor = $("floor");
-        floor.addEventListener("input", () => { $("floorv").textContent = (+floor.value).toFixed(2); });
-
-        // ---- defaults & decider status ----
+        // ---- defaults, signed-in customer, agents, examples ----
         fetch(API + "/api/defaults").then(r => r.json()).then(d => {
-            defaultInstructions = d.instructions;
-            instr.value = d.instructions;
-            TEAMS = d.teams; TIERS = d.tiers;
-            floor.value = d.route_floor; $("floorv").textContent = (+d.route_floor).toFixed(2);
+            scope.value = d.scope_threshold; $("scopev").textContent = (+d.scope_threshold).toFixed(2);
+            $("scopeq").textContent = `In scope, the message alone: “${d.questions.in_scope}”`;
+            $("followq").textContent = `Follow-up, with the previous reply as context: “${d.questions.follow_up}”`;
+
+            $("customer").textContent = `${d.customer.name} (${d.customer.id}, ${d.customer.city})`;
+
+            $("models").textContent = `Orchestrator on ${d.models.orchestrator}; specialists on ${d.models.specialist}; ` +
+                `out-of-scope agent on ${d.models.out_of_scope}. Specialists are tools of the orchestrator and start ` +
+                "fresh on every call. The out-of-scope agent sits outside it, has no tools and no history.";
+            d.specialists.forEach(s => {
+                $("agents").append(el("dt", "", s.name), el("dd", "", s.description));
+                $("agents").append(el("dt", ""), el("dd", "num", s.tools.join(", ")));
+            });
+            $("agents").append(el("dt", "", "out_of_scope_agent"),
+                el("dd", "", "Answers what the gate keeps away from the orchestrator and asks the customer to keep to store questions."));
+
+            const groups = {};
+            d.examples.forEach(ex => (groups[ex.group] ||= []).push(ex));
+            Object.entries(groups).forEach(([group, items]) => {
+                $("examples").appendChild(el("h3", "", group));
+                if (group === "Follow-ups")
+                    $("examples").appendChild(el("p", "note", "Send these after the message they follow up on: the follow-up question sees the previous reply."));
+                items.forEach(ex => {
+                    const b = el("button", "quiet", ex.text); b.type = "button";
+                    b.addEventListener("click", () => { msg.value = ex.text; msg.focus(); });
+                    $("examples").appendChild(b);
+                });
+            });
             renderHistory();
         });
-        $("resetInstr").addEventListener("click", () => { instr.value = defaultInstructions; });
 
         async function checkHealth() {
             const box = $("status");
@@ -896,7 +851,6 @@
         checkHealth();
         setInterval(checkHealth, 15000);
 
-
         // ---- conversation ----
         function addTurn(userText) {
             $("empty")?.remove();
@@ -910,93 +864,88 @@
         }
 
         function renderResult({ turn, status }, r) {
-            const blocked = r.blocked;
-            turn.classList.add(blocked ? "blocked" : "passed");
-            status.replaceWith(buildCheck(r));
-            const out = el("div", blocked ? "reply blockednote" : "reply");
-            if (!blocked && r.route) out.appendChild(el("div", "badge", `${r.route.label} · ${r.route.model_label}`));
+            const inScope = r.decision === "in_scope";
+            turn.classList.add(r.decision);
+            status.replaceWith(buildGate(r));
+            turn.appendChild(inScope ? buildTrace(r) : buildOutOfScope(r));
+            const out = el("div", "reply");
+            out.appendChild(el("div", "badge", inScope ? "Orchestrator reply" : "Out-of-scope agent reply · orchestrator not called"));
             out.appendChild(el("div", "msg", r.reply ?? ""));
             turn.appendChild(out);
             log.scrollTop = log.scrollHeight;
         }
 
-        function buildCheck(r) {
+        function buildGate(r) {
+            const g = r.gate, t = g.threshold;
             const wrap = el("div", "check");
 
-            const head = el("div", "scorehead");
-            const left = el("div");
-            left.append(el("div", "big num", r.score.toFixed(3)), el("div", "cap", "PII probability (noul)"));
-            head.append(left, el("span", "verdict",
-                r.blocked ? "✕ Blocked before the LLM" : "✓ Passed to the LLM"));
+            const head = el("div", "verdict");
+            head.append(el("span", "what", VERDICT[r.decision] + (r.reason === "follow_up" ? " as a follow-up" : "")),
+                el("span", "cap num", `threshold ${t.toFixed(2)}`));
             wrap.appendChild(head);
 
-            wrap.appendChild(gauge(r.score, r.threshold, r.blocked));
-            const scale = el("div", "scale num");
-            scale.append(el("span", "", "0"), el("span", "", `threshold ${r.threshold.toFixed(2)}`), el("span", "", "1"));
-            wrap.appendChild(scale);
-
-            if (r.categories?.length) {
-                const det = el("details", "breakdown");
-                // categories explain the verdict; they use the backend's fixed 0.5 cutoff
-                const hits = r.categories.filter(c => c.score >= CATEGORY_CUTOFF);
-                det.open = r.blocked;
-                det.appendChild(el("summary", "", hits.length
-                    ? `Breakdown: ${hits.map(c => c.label.toLowerCase()).join(", ")}`
-                    : "Breakdown by PII type"));
-                const grid = el("div", "cats");
-                r.categories.forEach(c => {
-                    const hit = c.score >= CATEGORY_CUTOFF;
-                    grid.append(el("span", "lab" + (hit ? " hit" : ""), c.label),
-                        gauge(c.score, CATEGORY_CUTOFF, hit),
-                        el("span", "v num", c.score.toFixed(2)));
-                });
-                det.appendChild(grid);
-                wrap.appendChild(det);
+            const grid = el("div", "scores");
+            const scoped = g.in_scope >= t;
+            grid.append(el("span", "lab" + (scoped ? " on" : ""), "In scope"),
+                gauge(g.in_scope, t, scoped ? "pass" : ""), el("span", "v num", g.in_scope.toFixed(2)));
+            grid.appendChild(el("span", "rule", "the message alone"));
+            if (g.follow_up != null) {
+                const follows = g.follow_up >= t;
+                grid.append(el("span", "lab" + (follows ? " on" : ""), "Follow-up"),
+                    gauge(g.follow_up, t, follows ? "pass" : ""), el("span", "v num", g.follow_up.toFixed(2)));
+                grid.appendChild(el("span", "rule", "with the previous reply as context; either one is enough"));
             }
-
-            if (r.route) wrap.appendChild(buildRoute(r.route, r.blocked));
+            wrap.appendChild(grid);
 
             const facts = el("div", "facts");
-            facts.appendChild(el("span", "num", `decider ${Math.round(r.decider_ms)} ms`));
-            facts.appendChild(el("span", "num", `gate round-trip ${Math.round(r.gate_ms)} ms`));
-            if (r.tokens != null) facts.appendChild(el("span", "num", `${r.tokens} tokens`));
-            facts.appendChild(el("span", "num", r.llm_ms != null ? `LLM ${Math.round(r.llm_ms)} ms` : "LLM not called"));
+            facts.appendChild(el("span", "num", `decider ${Math.round(g.decider_ms)} ms`));
+            if (g.requests > 1) facts.appendChild(el("span", "num", `${g.requests} decider requests`));
+            facts.appendChild(el("span", "num", `gate round-trip ${Math.round(g.gate_ms)} ms`));
+            if (g.tokens != null) facts.appendChild(el("span", "num", `${g.tokens} tokens`));
             wrap.appendChild(facts);
             return wrap;
         }
 
-        function bar(p, on, animate = true) {
-            const b = el("div", "bar" + (on ? " on" : ""));
-            const fill = el("div", "fill"); fill.style.width = animate ? "0%" : pct(p);
-            b.appendChild(fill);
-            if (animate) requestAnimationFrame(() => { fill.style.width = pct(p); });
-            return b;
+        function buildOutOfScope(r) {
+            const box = el("div", "trace");
+            const head = el("div", "thead");
+            head.append(el("span", "", "Out-of-scope agent"),
+                el("span", "cap num", `${r.llm_calls} model call${r.llm_calls === 1 ? "" : "s"} · ${secs(r.llm_ms ?? 0)}`));
+            box.append(head, el("div", "none", "No tools and no history; the orchestrator was never called."));
+            return box;
         }
 
-        function buildRoute(rt, blocked) {
-            const box = el("div", "route" + (blocked ? " unused" : ""));
-            const head = el("div", "rhead");
-            head.append(el("span", "dest", blocked ? "Route (not used: blocked)" : `→ ${rt.label} · ${rt.model_label}`),
-                el("span", "cap num", `confidence ${rt.confidence.toFixed(2)}`));
+        function buildTrace(r) {
+            const box = el("div", "trace");
+            const head = el("div", "thead");
+            head.append(el("span", "", "Orchestrator"),
+                el("span", "cap num", `${r.llm_calls} model call${r.llm_calls === 1 ? "" : "s"} · ${secs(r.llm_ms ?? 0)} in LLMs`));
             box.appendChild(head);
-            if (rt.fallback) {
-                const predicted = rt.options.find(o => o.key === rt.predicted)?.label ?? rt.predicted;
-                box.appendChild(el("div", "note",
-                    `Decider picked ${predicted}, but its confidence is below the ${rt.floor.toFixed(2)} floor, so the general agent answers.`));
+            if (!r.trace.length) {
+                box.appendChild(el("div", "none", "Answered directly, without calling a specialist."));
+                return box;
             }
-
-            const grid = el("div", "opts");
-            grid.appendChild(el("span", "sub", "Team (choice)"));
-            rt.options.forEach(o => {
-                const on = o.key === rt.predicted;
-                grid.append(el("span", "lab" + (on ? " on" : ""), o.label), bar(o.p, on), el("span", "v num", o.p.toFixed(2)));
+            const ol = el("ol");
+            r.trace.forEach(step => {
+                const li = el("li", "step");
+                const who = el("div", "who");
+                who.append(el("b", "", `→ ${step.agent}`), el("span", "cap num", step.ms != null ? secs(step.ms) : ""));
+                li.appendChild(who);
+                if (step.request) li.appendChild(el("div", "req", `“${step.request}”`));
+                const ul = el("ul");
+                step.tools.forEach(c => {
+                    const call = el("li", "call num" + (c.ok ? "" : " err"));
+                    const args = Object.entries(c.input || {}).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(", ");
+                    const name = el("span", "name", `${c.ok ? "✓" : "✕"} ${c.tool}(${args})`);
+                    name.title = c.output;
+                    call.append(name, el("span", "cap", secs(c.ms)));
+                    ul.appendChild(call);
+                });
+                if (!step.tools.length) ul.appendChild(el("li", "none", "no tool calls"));
+                li.appendChild(ul);
+                ol.appendChild(li);
             });
-            grid.appendChild(el("span", "sub", "Model tier (choice)"));
-            rt.tier_options.forEach(o => {
-                const on = o.key === rt.tier;
-                grid.append(el("span", "lab" + (on ? " on" : ""), o.label), bar(o.p, on), el("span", "v num", o.p.toFixed(2)));
-            });
-            box.appendChild(grid);
+            box.appendChild(ol);
             return box;
         }
 
@@ -1010,12 +959,15 @@
                 const res = await fetch(API + "/api/chat", {
                     method: "POST",
                     headers: { "content-type": "application/json" },
-                    body: JSON.stringify({ message: text, threshold: +thr.value, instructions: instr.value, route_floor: +floor.value })
+                    body: JSON.stringify({ session_id: sid, message: text, scope_threshold: +scope.value })
                 });
                 const data = await res.json().catch(() => ({}));
                 if (!res.ok) throw new Error(errText(data, res));
                 renderResult(t, data);
-                history.push({ text, score: data.score, blocked: data.blocked, threshold: data.threshold, decider_ms: data.decider_ms, route: data.route });
+                history.push({
+                    text, scope: data.gate.scope, decision: data.decision, threshold: data.gate.threshold,
+                    decider_ms: data.gate.decider_ms, llm_ms: data.llm_ms,
+                });
                 renderHistory();
             } catch (err) {
                 t.status.textContent = err.message;
@@ -1029,16 +981,18 @@
             if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("form").requestSubmit(); }
         });
 
-        $("clear").addEventListener("click", async () => {
-            await fetch(API + "/api/reset", { method: "POST" });
+        async function resetChat(note) {
+            await fetch(API + "/api/reset", {
+                method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ session_id: sid })
+            });
             log.replaceChildren();
             history.length = 0;
             renderHistory();
-            const p = el("p", "empty", "Chat cleared. The agent's conversation history was reset too.");
-            p.id = "empty"; log.appendChild(p);
-        });
+            const p = el("p", "empty", note); p.id = "empty"; log.appendChild(p);
+        }
+        $("clear").addEventListener("click", () => resetChat("Chat cleared. The conversation and the mock data were reset."));
 
-        // ---- score history chart ----
+        // ---- scope history chart ----
         const SVGNS = "http://www.w3.org/2000/svg";
         function svg(tag, attrs) {
             const e = document.createElementNS(SVGNS, tag);
@@ -1047,9 +1001,9 @@
         }
 
         function renderHistory() {
-            const t = +thr.value;
+            const t = +scope.value;
             const chart = $("chart"), tip = $("tip");
-            const W = chart.clientWidth || 320, H = 150;
+            const W = chart.clientWidth || 340, H = 170;
             const pad = { l: 26, r: 6, t: 8, b: 18 };
             const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
             const y = (v) => pad.t + ih * (1 - v);
@@ -1074,21 +1028,24 @@
             const bw = Math.max(4, Math.min(28, slot - 2));  // 2px gap between bars
             history.forEach((h, i) => {
                 const x = pad.l + i * slot + (slot - bw) / 2;
-                const hot = h.score >= t;
-                const top = y(h.score), base = y(0);
+                const now = decideNow(h);
+                const top = y(h.scope), base = y(0);
                 const r = Math.min(4, bw / 2, base - top);
                 // flat at the baseline, 4px rounded data end
                 const d = `M${x},${base} V${top + r} Q${x},${top} ${x + r},${top} H${x + bw - r} Q${x + bw},${top} ${x + bw},${top + r} V${base} Z`;
                 const hit = svg("rect", { class: "hit", x: pad.l + i * slot, y: pad.t, width: slot, height: ih, fill: "transparent" });
-                const bar = svg("path", { class: "bar", d, fill: hot ? "var(--block)" : "var(--pass)" });
+                const bar = svg("path", { class: "mark", d, fill: now === "in_scope" ? "var(--pass)" : "var(--out)" });
+                const label = (dec) => dec === "in_scope" ? "the orchestrator" : "the out-of-scope agent";
                 const show = () => {
                     bar.classList.add("active");
                     tip.hidden = false;
-                    tip.textContent = `#${i + 1} · ${h.score.toFixed(3)} · ${h.blocked ? "was blocked" : "was passed"} at ${h.threshold.toFixed(2)}` +
-                        (hot !== h.blocked ? ` (would ${hot ? "block" : "pass"} now)` : "") + `\n“${h.text.slice(0, 60)}${h.text.length > 60 ? "…" : ""}”`;
-                    tip.style.whiteSpace = "pre-wrap";
-                    tip.style.left = Math.min(Math.max(x + bw / 2, 116), W - 116) + "px";
-                    tip.style.top = (top - 6) + "px";
+                    tip.textContent = `#${i + 1} · scope ${h.scope.toFixed(3)} · went to ${label(h.decision)} at ${h.threshold.toFixed(2)}` +
+                        (now !== h.decision ? ` (would go to ${label(now)} now)` : "") +
+                        `\n“${h.text.slice(0, 60)}${h.text.length > 60 ? "…" : ""}”`;
+                    tip.style.left = Math.min(Math.max(x + bw / 2, 122), W - 122) + "px";
+                    tip.style.top = top + "px";
+                    // near the top the tooltip would be clipped, so it goes below the bar's end
+                    tip.style.transform = top < 80 ? "translate(-50%, 12px)" : "";
                 };
                 const hide = () => { bar.classList.remove("active"); tip.hidden = true; };
                 hit.addEventListener("mouseenter", show);
@@ -1100,42 +1057,27 @@
             });
 
             // threshold reference line, drawn on top
-            chart.appendChild(svg("line", { x1: pad.l, x2: W - pad.r, y1: y(t), y2: y(t), stroke: "#1b2a3a", "stroke-width": 1.5, "stroke-dasharray": "4 3" }));
+            chart.appendChild(svg("line", { x1: pad.l, x2: W - pad.r, y1: y(t), y2: y(t), stroke: "#1b2a3a", "stroke-width": 1.5 }));
             const tl = svg("text", { x: W - pad.r, y: y(t) - 4, "text-anchor": "end", "font-size": 10, fill: "#1b2a3a" });
             tl.textContent = `threshold ${t.toFixed(2)}`;
             chart.appendChild(tl);
 
-            // tiles + accessible table
+            // tiles
+            const sent = history.filter(h => h.decision === "in_scope"), out = history.filter(h => h.decision === "out_of_scope");
             $("nSent").textContent = history.length;
-            $("nBlocked").textContent = history.filter(h => h.blocked).length;
-            const lat = history.map(h => h.decider_ms).sort((a, b) => a - b);
-            $("nLat").textContent = lat.length ? Math.round(lat[Math.floor(lat.length / 2)]) : "–";
-            renderRouteStats();
+            $("nIn").textContent = sent.length;
+            $("nOut").textContent = out.length;
+            const ms = (v) => v == null ? "–" : Math.round(v);
+            $("nDecMs").textContent = ms(median(history.map(h => h.decider_ms)));
+            $("nInMs").textContent = ms(median(sent.map(h => h.llm_ms).filter(v => v != null)));
+            $("nOutMs").textContent = ms(median(out.map(h => h.llm_ms).filter(v => v != null)));
 
             const tb = $("histTable").querySelector("tbody");
             tb.replaceChildren(...history.map((h, i) => {
                 const tr = el("tr");
-                [i + 1, h.text, h.score.toFixed(3), h.blocked ? "blocked" : "passed"].forEach(v => tr.appendChild(el("td", "", String(v))));
+                [i + 1, h.text, h.scope.toFixed(3), h.decision.replace("_", " ")].forEach(v => tr.appendChild(el("td", "", String(v))));
                 return tr;
             }));
-        }
-        function renderRouteStats() {
-            const routed = history.filter(h => !h.blocked && h.route);
-            $("nRouted").textContent = routed.length;
-            $("nCheap").textContent = routed.filter(h => h.route.tier === "simple").length;
-            $("nFallback").textContent = routed.filter(h => h.route.fallback).length;
-            const grid = $("routeStats");
-            grid.replaceChildren();
-            const rows = (title, labels, keyOf) => {
-                grid.appendChild(el("span", "sub", title));
-                Object.entries(labels).forEach(([key, label]) => {
-                    const n = routed.filter(h => keyOf(h) === key).length;
-                    grid.append(el("span", "lab" + (n ? " on" : ""), label),
-                        bar(routed.length ? n / routed.length : 0, n > 0, false), el("span", "v num", String(n)));
-                });
-            };
-            rows("By team", TEAMS, h => h.route.team);
-            rows("By model", TIERS, h => h.route.tier);
         }
 
         renderHistory();

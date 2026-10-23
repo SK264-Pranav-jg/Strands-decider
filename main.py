@@ -1,60 +1,48 @@
-import asyncio
 import logging
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 import httpx
 import uvicorn
-from dotenv import load_dotenv
-
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-
 from pydantic import BaseModel, Field
 
-STATIC = Path(__file__).resolve().parent
-load_dotenv(STATIC / ".env")
+from support.config import ORCHESTRATOR_MODEL_ID, OUT_OF_SCOPE_MODEL_ID, ROOT, SPECIALIST_MODEL_ID
+from support.decider import DeciderClient, DeciderError
+from support.examples import EXAMPLES
+from support.gate import DEFAULT_SCOPE_THRESHOLD, FOLLOW_UP_QUESTIONS, QUESTIONS
+from support.prompts import SPECIALISTS
+from support.sessions import Sessions
+from support.store import CUSTOMERS, SIGNED_IN_CUSTOMER_ID, Store
+from support.tools import build_tools
+from support.trace import ORCHESTRATOR, OUT_OF_SCOPE
 
-from agent.agent import create_agent
-from agent.decider_gate import (
-    DEFAULT_INSTRUCTIONS,
-    DEFAULT_THRESHOLD,
-    DeciderClient,
-    DeciderError,
-    DeciderGate,
-)
-from agent.router import (
-    DEFAULT_ROUTE_FLOOR,
-    TEAMS,
-    TIERS,
-)
-
-log = logging.getLogger("pii-gate")
+log = logging.getLogger("support")
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
+
 class ChatRequest(BaseModel):
+    session_id: str = Field(min_length=1, max_length=64)
     message: str
-    threshold: float = Field(DEFAULT_THRESHOLD, ge=0.0, le=1.0)
-    instructions: str | None = None
-    # team picks with confidence below this go to the general agent
-    route_floor: float = Field(DEFAULT_ROUTE_FLOOR, ge=0.0, le=1.0)
+    scope_threshold: float = Field(DEFAULT_SCOPE_THRESHOLD, ge=0.0, le=1.0)
 
 
-decider: DeciderClient
-agent = None
-agent_lock = asyncio.Lock()  # a Strands Agent rejects concurrent invocations
+class ResetRequest(BaseModel):
+    session_id: str
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global decider
-    decider = DeciderClient()
+    # tests may install a fake decider before startup
+    if not hasattr(app.state, "decider"):
+        app.state.decider = DeciderClient()
+    app.state.sessions = Sessions(app.state.decider)
     yield
-    await decider.aclose()
+    await app.state.decider.aclose()
 
 
-app = FastAPI(title="PII gate demo", lifespan=lifespan)
+app = FastAPI(title="Acme Electronics support, behind a decider gate", lifespan=lifespan)
 # lets the page work when opened from an editor's Live Server instead of from "/"
 app.add_middleware(
     CORSMiddleware,
@@ -66,29 +54,29 @@ app.add_middleware(
 
 @app.get("/")
 async def index():
-    return FileResponse(STATIC / "index.html")
-
-
-def get_agent():
-    global agent
-    if agent is None:
-        agent = create_agent(hooks=[DeciderGate(decider)])
-    return agent
+    return FileResponse(ROOT / "index.html")
 
 
 @app.get("/api/defaults", tags=["chat"])
 async def defaults():
+    tools = build_tools(Store(), "")  # only for the tool names
     return {
-        "instructions": DEFAULT_INSTRUCTIONS,
-        "threshold": DEFAULT_THRESHOLD,
-        "route_floor": DEFAULT_ROUTE_FLOOR,
-        "teams": {key: t["label"] for key, t in TEAMS.items()},
-        "tiers": {key: t["label"] for key, t in TIERS.items()},
+        "scope_threshold": DEFAULT_SCOPE_THRESHOLD,
+        "questions": {key: q["instructions"] for key, q in (QUESTIONS | FOLLOW_UP_QUESTIONS).items()},
+        "customer": CUSTOMERS[SIGNED_IN_CUSTOMER_ID],
+        "examples": EXAMPLES,
+        "models": {"orchestrator": ORCHESTRATOR_MODEL_ID, "specialist": SPECIALIST_MODEL_ID,
+                   "out_of_scope": OUT_OF_SCOPE_MODEL_ID},
+        "specialists": [
+            {"name": name, "description": spec["description"], "tools": [t.tool_name for t in tools[name]]}
+            for name, spec in SPECIALISTS.items()
+        ],
     }
 
 
 @app.get("/api/health", tags=["chat"])
 async def health():
+    decider = app.state.decider
     try:
         return {"decider": "ok", **await decider.health()}
     except (httpx.HTTPError, ValueError):
@@ -101,44 +89,39 @@ async def chat(req: ChatRequest):
     if not text:
         raise HTTPException(400, detail="Message Empty")
 
-    gate = {
-        "threshold": req.threshold,
-        "instructions": (req.instructions or "").strip(),
-        # value that is used to route the models 
-        "route_floor": req.route_floor,
-    }
+    session = app.state.sessions.get(req.session_id)
+    gate = {"scope_threshold": req.scope_threshold}
 
-    try:
-        async with agent_lock:
-            assistant = get_agent()
-            response = await assistant.invoke_async(text, invocation_state={"decider": gate})
-    except DeciderError as e:
-        raise HTTPException(502, str(e))
-    except Exception as e:
-        log.exception("agent invocation failed")
-        raise HTTPException(502, f"Could not reach the Bedrock model: {type(e).__name__}: {e}")
+    async with session.lock:
+        session.trace.reset()
+        try:
+            response = await session.agent.invoke_async(text, invocation_state={"gate": gate})
+        except DeciderError as e:
+            raise HTTPException(502, str(e))
+        except Exception as e:
+            who = "out-of-scope agent" if gate.get("decision") == "out_of_scope" else "orchestrator"
+            log.exception("%s invocation failed", who)
+            raise HTTPException(502, f"The {who} failed: {type(e).__name__}: {e}")
+        trace = session.trace.as_dict()
 
-    # DeciderGate fills these in on every turn it doesn't raise for
+    # ScopeGate fills these in on every turn it doesn't raise for
     return {
-        "score": gate["score"],
-        "categories": gate["categories"],
-        "decider_ms": gate["decider_ms"],
-        "tokens": gate["tokens"],
-        "threshold": gate["threshold"],
-        "gate_ms": gate["gate_ms"],
-        "blocked": gate["blocked"],
+        "decision": gate["decision"],
+        "reason": gate["reason"],
+        "handled_by": ORCHESTRATOR if gate["decision"] == "in_scope" else OUT_OF_SCOPE,
+        "gate": {key: gate[key] for key in
+                 ("scope", "in_scope", "follow_up", "threshold", "decider_ms", "gate_ms", "tokens", "requests")},
         "reply": str(response).strip(),
-        "llm_ms": gate.get("llm_ms"),
-        "route": gate.get("route"),
+        "trace": trace["steps"],
+        "llm_calls": trace["llm_calls"],
+        "llm_ms": trace["llm_ms"],
     }
 
 
 @app.post("/api/reset", tags=["chat"])
-async def reset():
-    """Forget the agent's conversation history."""
-    global agent
-    async with agent_lock:
-        agent = None
+async def reset(req: ResetRequest):
+    """Forget the session's conversation and restore its mock data."""
+    app.state.sessions.reset(req.session_id)
     return {"ok": True}
 
 
